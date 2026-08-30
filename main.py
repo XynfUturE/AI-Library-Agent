@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -19,7 +20,6 @@ from agent.auth import (
 )
 
 from agent.errors import get_user_error_message
-
 from agent.state import AgentState
 
 from agent.tools import (
@@ -152,11 +152,13 @@ Borrowing:
 - I want Python Programming
 - Can I borrow Python Programming?
 - I'd like to check out Python Programming
+- Get me Python Programming
 
 Returning:
 - Return Python Programming
 - Return book 1
 - I've finished with Python Programming
+- Give Python Programming back
 
 Current loans:
 - What do I have?
@@ -187,19 +189,24 @@ Recommendation:
 - What programming books are available?
 - I want something about databases
 - What should I read?
+- Recommend something similar to Python Programming
 
 
 ==================================================
 BORROWING DECISION RULES
 ==================================================
 
-When the user provides a book title:
+When the user provides a book title or search term:
 
 1. Use search_books first.
-2. Identify the correct actual book.
-3. Obtain the actual book ID.
-4. Check availability.
-5. Borrow only if available.
+2. Inspect ALL returned matches.
+3. If exactly one book clearly matches, use that book.
+4. If multiple books match and the intended book is
+   ambiguous, do NOT guess.
+5. Ask the user to choose from the actual returned books.
+6. Once a specific book is identified, obtain its actual ID.
+7. Check availability.
+8. Borrow only if available.
 
 When the user explicitly provides a book ID:
 
@@ -210,8 +217,7 @@ Never invent book IDs.
 
 Never borrow an unavailable book.
 
-Never call borrow_book before availability has been
-verified.
+Never call borrow_book before availability has been verified.
 
 After successful borrowing, stop using tools.
 
@@ -225,6 +231,7 @@ Use the minimum number of tool calls necessary.
 For title-based borrowing:
 
 search_books
+-> identify exact book
 -> check_book_availability
 -> borrow_book
 
@@ -237,7 +244,7 @@ search_books
 For an alternative:
 
 list_available_books
--> choose an actual available book
+-> select an actual available book
 -> borrow_book
 
 Do not repeatedly call the same tool with identical
@@ -312,7 +319,8 @@ Never pay another user's fine.
 
 Never pay an already paid fine.
 
-Only report success when pay_fine returns success=true.
+Only report successful payment when pay_fine returns
+success=true.
 
 
 ==================================================
@@ -383,6 +391,20 @@ arguments without a genuine reason.
 
 
 ==================================================
+TASK COMPLETION
+==================================================
+
+A task is complete when:
+
+- the requested operation succeeded, or
+- the requested information was provided, or
+- the request cannot be completed and the user has
+  been clearly informed why.
+
+Do not make unnecessary tool calls after completion.
+
+
+==================================================
 IMPORTANT
 ==================================================
 
@@ -409,14 +431,11 @@ messages = [
 # ============================================================
 
 TOOL_DEFINITIONS = [
-
     {
         "type": "function",
         "function": {
             "name": "search_books",
-            "description": (
-                "Search books by title keyword."
-            ),
+            "description": "Search books by title keyword.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -429,7 +448,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -450,7 +468,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -471,7 +488,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -492,7 +508,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -507,7 +522,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -522,7 +536,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -543,7 +556,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -564,7 +576,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -579,7 +590,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -599,7 +609,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -614,7 +623,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-
     {
         "type": "function",
         "function": {
@@ -638,40 +646,38 @@ TOOL_DEFINITIONS = [
 # ============================================================
 
 def debug_print(*args, **kwargs):
-
     if DEBUG_MODE:
         console.print(*args, **kwargs)
 
 
 def safe_float(value, default=0.0):
-
     try:
         return float(value)
-
-    except (
-        TypeError,
-        ValueError,
-    ):
+    except (TypeError, ValueError):
         return default
 
 
 def short_date(value):
-
     if not value:
         return "-"
-
     return str(value)[:10]
 
 
-def require_login():
+def normalize_text(value):
+    return re.sub(
+        r"[^a-z0-9]+",
+        " ",
+        str(value).lower(),
+    ).strip()
 
+
+def require_login():
     if state.is_logged_in():
         return True
 
     show_error(
         "Please log in before using this feature."
     )
-
     return False
 
 
@@ -680,9 +686,7 @@ def require_login():
 # ============================================================
 
 def show_info(message):
-
     console.print()
-
     console.print(
         Panel(
             str(message),
@@ -694,9 +698,7 @@ def show_info(message):
 
 
 def show_success(message):
-
     console.print()
-
     console.print(
         Panel(
             str(message),
@@ -708,9 +710,7 @@ def show_success(message):
 
 
 def show_error(message):
-
     console.print()
-
     console.print(
         Panel(
             str(message),
@@ -722,20 +722,16 @@ def show_error(message):
 
 
 def show_agent_action(message):
-
     console.print(
         f"[bright_cyan]🤖 Agent:[/bright_cyan] {message}"
     )
 
 
 def show_tool_error(result):
-
     if not isinstance(result, dict):
-
         show_error(
             "The library operation could not be completed."
         )
-
         return
 
     show_error(
@@ -746,16 +742,39 @@ def show_tool_error(result):
     )
 
     if DEBUG_MODE:
-
         debug_print(
             "[DEBUG] Error type:",
             result.get("error_type"),
         )
-
         debug_print(
             "[DEBUG] Internal error:",
             result.get("_debug_error"),
         )
+
+
+def create_field_table(
+    border_style="bright_cyan",
+):
+    table = Table(
+        show_header=False,
+        border_style=border_style,
+        expand=True,
+        padding=(0, 1),
+    )
+
+    table.add_column(
+        "Field",
+        ratio=1,
+        style="bold cyan",
+    )
+
+    table.add_column(
+        "Value",
+        ratio=3,
+        overflow="fold",
+    )
+
+    return table
 
 
 # ============================================================
@@ -763,7 +782,6 @@ def show_tool_error(result):
 # ============================================================
 
 def reset_conversation():
-
     global messages
 
     messages = [
@@ -775,7 +793,6 @@ def reset_conversation():
 
 
 def add_assistant_history(content):
-
     if not content:
         return
 
@@ -788,7 +805,6 @@ def add_assistant_history(content):
 
 
 def trim_messages():
-
     global messages
 
     if len(messages) <= 1:
@@ -814,16 +830,13 @@ def trim_messages():
 
 
 def build_assistant_message(message):
-
     result = {
         "role": "assistant",
         "content": message.content or "",
     }
 
     if message.tool_calls:
-
         result["tool_calls"] = [
-
             {
                 "id": tool_call.id,
                 "type": "function",
@@ -832,9 +845,7 @@ def build_assistant_message(message):
                     "arguments": tool_call.function.arguments,
                 },
             }
-
             for tool_call in message.tool_calls
-
         ]
 
     return result
@@ -845,9 +856,7 @@ def build_assistant_message(message):
 # ============================================================
 
 def is_yes_response(text):
-
     return text.lower().strip() in {
-
         "yes",
         "yes please",
         "sure",
@@ -864,9 +873,7 @@ def is_yes_response(text):
 
 
 def is_no_response(text):
-
     return text.lower().strip() in {
-
         "no",
         "no thanks",
         "no thank you",
@@ -877,28 +884,21 @@ def is_no_response(text):
 
 
 # ============================================================
-# ALTERNATIVE SELECTION
+# ALTERNATIVE BOOK SELECTION
 # ============================================================
 
 def select_alternative(
     books,
     requested_book_id,
+    requested_book_title=None,
 ):
-
-    if not isinstance(
-        books,
-        list,
-    ):
+    if not isinstance(books, list):
         return None
 
     candidates = []
 
     for book in books:
-
-        if not isinstance(
-            book,
-            dict,
-        ):
+        if not isinstance(book, dict):
             continue
 
         if book.get("id") == requested_book_id:
@@ -909,8 +909,28 @@ def select_alternative(
     if not candidates:
         return None
 
-    preferred_keywords = [
+    requested_tokens = set(
+        normalize_text(
+            requested_book_title or ""
+        ).split()
+    )
 
+    stop_words = {
+        "the",
+        "a",
+        "an",
+        "of",
+        "and",
+        "for",
+        "to",
+        "in",
+        "on",
+        "book",
+    }
+
+    requested_tokens -= stop_words
+
+    generic_library_tokens = {
         "programming",
         "database",
         "software",
@@ -919,22 +939,55 @@ def select_alternative(
         "python",
         "java",
         "object",
-    ]
+        "design",
+        "system",
+    }
+
+    scored_candidates = []
 
     for book in candidates:
+        title = normalize_text(
+            book.get("title", "")
+        )
 
-        title = str(
-            book.get(
-                "title",
-                "",
+        title_tokens = set(title.split())
+
+        score = 0
+
+        score += (
+            len(
+                requested_tokens
+                & title_tokens
             )
-        ).lower()
+            * 5
+        )
 
-        if any(
-            keyword in title
-            for keyword in preferred_keywords
-        ):
-            return book
+        score += (
+            len(
+                generic_library_tokens
+                & title_tokens
+            )
+        )
+
+        scored_candidates.append(
+            (
+                score,
+                book,
+            )
+        )
+
+    scored_candidates.sort(
+        key=lambda item: (
+            item[0],
+            -int(item[1].get("id", 0) or 0),
+        ),
+        reverse=True,
+    )
+
+    best_score = scored_candidates[0][0]
+
+    if best_score > 0:
+        return scored_candidates[0][1]
 
     return candidates[0]
 
@@ -944,9 +997,7 @@ def select_alternative(
 # ============================================================
 
 def get_action_message(function_name):
-
     actions = {
-
         "search_books":
             "Searching for the book...",
 
@@ -984,9 +1035,7 @@ def get_action_message(function_name):
             "Looking for available books...",
     }
 
-    return actions.get(
-        function_name
-    )
+    return actions.get(function_name)
 
 
 # ============================================================
@@ -997,7 +1046,6 @@ def execute_tool(
     function_name,
     arguments,
 ):
-
     user_id = state.current_user_id
 
     debug_print(
@@ -1016,135 +1064,103 @@ def execute_tool(
     )
 
     try:
-
         if function_name == "search_books":
-
             return search_books(
                 arguments["keyword"]
             )
 
         if function_name == "check_book_availability":
-
             return check_book_availability(
                 arguments["book_id"]
             )
 
         if function_name == "borrow_book":
-
             return borrow_book(
                 arguments["book_id"],
                 user_id,
             )
 
         if function_name == "return_book":
-
             return return_book(
                 arguments["book_id"],
                 user_id,
             )
 
         if function_name == "get_current_borrowed_books":
-
             return get_current_borrowed_books(
                 user_id
             )
 
         if function_name == "get_overdue_books":
-
             return get_overdue_books(
                 user_id
             )
 
         if function_name == "get_book_loan_details":
-
             return get_book_loan_details(
                 arguments["book_id"],
                 user_id,
             )
 
         if function_name == "calculate_fine":
-
             return calculate_fine(
                 arguments["book_id"],
                 user_id,
             )
 
         if function_name == "get_unpaid_fines":
-
             return get_unpaid_fines(
                 user_id
             )
 
         if function_name == "pay_fine":
-
             return pay_fine(
                 arguments["book_id"],
                 user_id,
             )
 
         if function_name == "get_borrow_history":
-
             return get_borrow_history(
                 user_id
             )
 
         if function_name == "list_available_books":
-
             return list_available_books()
 
         return {
-
-            "success":
-                False,
-
-            "error_type":
-                "ToolError",
-
+            "success": False,
+            "error_type": "ToolError",
             "message":
                 f"Unknown tool: {function_name}",
         }
 
     except KeyError as error:
-
         debug_print(
             "[DEBUG] Missing tool argument:",
             repr(error),
         )
 
         return {
-
-            "success":
-                False,
-
-            "error_type":
-                "ValidationError",
-
+            "success": False,
+            "error_type": "ValidationError",
             "message":
                 "The AI provided incomplete information "
                 "for this operation.",
-
             "_debug_error":
                 repr(error),
         }
 
     except Exception as error:
-
         debug_print(
             "[DEBUG] Tool execution error:",
             repr(error),
         )
 
         return {
-
-            "success":
-                False,
-
-            "error_type":
-                "ToolError",
-
+            "success": False,
+            "error_type": "ToolError",
             "message":
                 "The library operation could not be completed.",
-
             "_debug_error":
                 repr(error),
         }
@@ -1158,55 +1174,27 @@ def show_borrow_result(
     current_state,
     result,
 ):
-
-    if not isinstance(
-        result,
-        dict,
-    ):
-
+    if not isinstance(result, dict):
         show_error(
             "Invalid borrowing result."
         )
-
         return
 
-    book = result.get(
-        "book",
-        {},
-    )
+    book = result.get("book", {})
 
-    if not isinstance(
-        book,
-        dict,
-    ):
-
+    if not isinstance(book, dict):
         book = {}
 
-    table = Table(
-        show_header=False,
-        border_style="green",
-        expand=True,
-        padding=(0, 1),
-    )
-
-    table.add_column(
-        "Field",
-        ratio=1,
-        style="bold cyan",
-    )
-
-    table.add_column(
-        "Value",
-        ratio=3,
-        overflow="fold",
+    table = create_field_table(
+        border_style="green"
     )
 
     if current_state.alternative_book:
-
         table.add_row(
             "Requested",
             str(
                 current_state.requested_book
+                or "Unknown"
             ),
         )
 
@@ -1224,9 +1212,7 @@ def show_borrow_result(
                 )
             ),
         )
-
     else:
-
         table.add_row(
             "Book",
             str(
@@ -1273,7 +1259,6 @@ def show_borrow_result(
     )
 
     console.print()
-
     console.print(
         Panel(
             table,
@@ -1288,50 +1273,20 @@ def show_borrow_result(
 # RETURN RESULT
 # ============================================================
 
-def show_return_result(
-    result,
-):
-
-    if not isinstance(
-        result,
-        dict,
-    ):
-
+def show_return_result(result):
+    if not isinstance(result, dict):
         show_error(
             "Invalid return result."
         )
-
         return
 
-    book = result.get(
-        "book",
-        {},
-    )
+    book = result.get("book", {})
 
-    if not isinstance(
-        book,
-        dict,
-    ):
-
+    if not isinstance(book, dict):
         book = {}
 
-    table = Table(
-        show_header=False,
-        border_style="green",
-        expand=True,
-        padding=(0, 1),
-    )
-
-    table.add_column(
-        "Field",
-        ratio=1,
-        style="bold cyan",
-    )
-
-    table.add_column(
-        "Value",
-        ratio=3,
-        overflow="fold",
+    table = create_field_table(
+        border_style="green"
     )
 
     table.add_row(
@@ -1374,11 +1329,7 @@ def show_return_result(
         ),
     )
 
-    if result.get(
-        "is_overdue",
-        False,
-    ):
-
+    if result.get("is_overdue", False):
         table.add_row(
             "Loan Status",
             "[yellow]Returned late[/yellow]",
@@ -1393,9 +1344,7 @@ def show_return_result(
                 )
             ),
         )
-
     else:
-
         table.add_row(
             "Loan Status",
             "[green]Returned on time[/green]",
@@ -1418,8 +1367,7 @@ def show_return_result(
         (
             "[yellow]Unpaid[/yellow]"
             if fine_amount > 0
-            else
-            "[green]No Fine[/green]"
+            else "[green]No Fine[/green]"
         ),
     )
 
@@ -1429,7 +1377,6 @@ def show_return_result(
     )
 
     console.print()
-
     console.print(
         Panel(
             table,
@@ -1444,41 +1391,20 @@ def show_return_result(
 # PAYMENT RESULT
 # ============================================================
 
-def show_payment_result(
-    result,
-):
-
-    if not isinstance(
-        result,
-        dict,
-    ):
-
+def show_payment_result(result):
+    if not isinstance(result, dict):
         show_error(
             "Invalid payment result."
         )
-
         return
 
-    if result.get(
-        "success"
-    ) is not True:
-
-        show_tool_error(
-            result
-        )
-
+    if result.get("success") is not True:
+        show_tool_error(result)
         return
 
-    book = result.get(
-        "book",
-        {},
-    )
+    book = result.get("book", {})
 
-    if not isinstance(
-        book,
-        dict,
-    ):
-
+    if not isinstance(book, dict):
         book = {}
 
     amount = safe_float(
@@ -1491,23 +1417,8 @@ def show_payment_result(
         )
     )
 
-    table = Table(
-        show_header=False,
-        border_style="green",
-        expand=True,
-        padding=(0, 1),
-    )
-
-    table.add_column(
-        "Field",
-        ratio=1,
-        style="bold cyan",
-    )
-
-    table.add_column(
-        "Value",
-        ratio=3,
-        overflow="fold",
+    table = create_field_table(
+        border_style="green"
     )
 
     table.add_row(
@@ -1551,7 +1462,6 @@ def show_payment_result(
     )
 
     console.print()
-
     console.print(
         Panel(
             table,
@@ -1566,33 +1476,20 @@ def show_payment_result(
 # CURRENT BORROWED BOOKS
 # ============================================================
 
-def show_current_borrowed_books_result(
-    result,
-):
-
-    if not isinstance(
-        result,
-        list,
-    ):
-
-        show_tool_error(
-            result
-        )
-
+def show_current_borrowed_books_result(result):
+    if not isinstance(result, list):
+        show_tool_error(result)
         return
 
     if not result:
-
         show_info(
             "You currently have no borrowed books."
         )
-
         return
 
     width = console.size.width
 
     if width < 100:
-
         table = Table(
             title="Current Borrowed Books",
             border_style="bright_cyan",
@@ -1623,7 +1520,6 @@ def show_current_borrowed_books_result(
         )
 
         for book in result:
-
             fine = safe_float(
                 book.get(
                     "estimated_fine_amount",
@@ -1631,36 +1527,27 @@ def show_current_borrowed_books_result(
                 )
             )
 
-            table.add_row(
+            status = (
+                "[red]Overdue[/red]"
+                if book.get("is_overdue", False)
+                else "[green]Active[/green]"
+            )
 
+            table.add_row(
                 str(
                     book.get(
                         "book_title",
                         "Unknown",
                     )
                 ),
-
                 short_date(
-                    book.get(
-                        "due_date"
-                    )
+                    book.get("due_date")
                 ),
-
-                (
-                    "[red]Overdue[/red]"
-                    if book.get(
-                        "is_overdue",
-                        False,
-                    )
-                    else
-                    "[green]Active[/green]"
-                ),
-
+                status,
                 f"${fine:.2f}",
             )
 
         console.print(table)
-
         return
 
     table = Table(
@@ -1704,7 +1591,6 @@ def show_current_borrowed_books_result(
     )
 
     for book in result:
-
         fine = safe_float(
             book.get(
                 "estimated_fine_amount",
@@ -1712,44 +1598,32 @@ def show_current_borrowed_books_result(
             )
         )
 
-        table.add_row(
+        status = (
+            "[red]Overdue[/red]"
+            if book.get("is_overdue", False)
+            else "[green]Active[/green]"
+        )
 
+        table.add_row(
             str(
                 book.get(
                     "book_title",
                     "Unknown",
                 )
             ),
-
             str(
                 book.get(
                     "author",
                     "Unknown",
                 )
             ),
-
             short_date(
-                book.get(
-                    "borrowed_at"
-                )
+                book.get("borrowed_at")
             ),
-
             short_date(
-                book.get(
-                    "due_date"
-                )
+                book.get("due_date")
             ),
-
-            (
-                "[red]Overdue[/red]"
-                if book.get(
-                    "is_overdue",
-                    False,
-                )
-                else
-                "[green]Active[/green]"
-            ),
-
+            status,
             f"${fine:.2f}",
         )
 
@@ -1760,33 +1634,20 @@ def show_current_borrowed_books_result(
 # OVERDUE BOOKS
 # ============================================================
 
-def show_overdue_books_result(
-    result,
-):
-
-    if not isinstance(
-        result,
-        list,
-    ):
-
-        show_tool_error(
-            result
-        )
-
+def show_overdue_books_result(result):
+    if not isinstance(result, list):
+        show_tool_error(result)
         return
 
     if not result:
-
         show_success(
             "You currently have no overdue books."
         )
-
         return
 
     width = console.size.width
 
     if width < 100:
-
         table = Table(
             title="Overdue Books",
             border_style="red",
@@ -1818,7 +1679,6 @@ def show_overdue_books_result(
         )
 
         for book in result:
-
             fine = safe_float(
                 book.get(
                     "estimated_fine_amount",
@@ -1827,32 +1687,25 @@ def show_overdue_books_result(
             )
 
             table.add_row(
-
                 str(
                     book.get(
                         "book_title",
                         "Unknown",
                     )
                 ),
-
                 short_date(
-                    book.get(
-                        "due_date"
-                    )
+                    book.get("due_date")
                 ),
-
                 str(
                     book.get(
                         "late_days",
                         0,
                     )
                 ),
-
                 f"${fine:.2f}",
             )
 
         console.print(table)
-
         return
 
     table = Table(
@@ -1892,7 +1745,6 @@ def show_overdue_books_result(
     )
 
     for book in result:
-
         fine = safe_float(
             book.get(
                 "estimated_fine_amount",
@@ -1901,34 +1753,27 @@ def show_overdue_books_result(
         )
 
         table.add_row(
-
             str(
                 book.get(
                     "book_title",
                     "Unknown",
                 )
             ),
-
             str(
                 book.get(
                     "author",
                     "Unknown",
                 )
             ),
-
             short_date(
-                book.get(
-                    "due_date"
-                )
+                book.get("due_date")
             ),
-
             str(
                 book.get(
                     "late_days",
                     0,
                 )
             ),
-
             f"${fine:.2f}",
         )
 
@@ -1939,29 +1784,15 @@ def show_overdue_books_result(
 # FINE RESULT
 # ============================================================
 
-def show_fine_result(
-    result,
-):
-
-    if not isinstance(
-        result,
-        dict,
-    ):
-
+def show_fine_result(result):
+    if not isinstance(result, dict):
         show_error(
             "Invalid fine information."
         )
-
         return
 
-    if result.get(
-        "success"
-    ) is False:
-
-        show_tool_error(
-            result
-        )
-
+    if result.get("success") is False:
+        show_tool_error(result)
         return
 
     amount = safe_float(
@@ -1971,23 +1802,8 @@ def show_fine_result(
         )
     )
 
-    table = Table(
-        show_header=False,
-        border_style="bright_cyan",
-        expand=True,
-        padding=(0, 1),
-    )
-
-    table.add_column(
-        "Field",
-        ratio=1,
-        style="bold cyan",
-    )
-
-    table.add_column(
-        "Value",
-        ratio=3,
-        overflow="fold",
+    table = create_field_table(
+        border_style="bright_cyan"
     )
 
     table.add_row(
@@ -2020,10 +1836,7 @@ def show_fine_result(
         ),
     )
 
-    if result.get(
-        "returned_at"
-    ):
-
+    if result.get("returned_at"):
         table.add_row(
             "Returned At",
             str(
@@ -2051,8 +1864,7 @@ def show_fine_result(
                 "is_overdue",
                 False,
             )
-            else
-            "[green]No[/green]"
+            else "[green]No[/green]"
         ),
     )
 
@@ -2067,7 +1879,6 @@ def show_fine_result(
     )
 
     display_status = {
-
         "Paid":
             "[green]Paid[/green]",
 
@@ -2090,7 +1901,6 @@ def show_fine_result(
     )
 
     console.print()
-
     console.print(
         Panel(
             table,
@@ -2105,35 +1915,18 @@ def show_fine_result(
 # UNPAID FINES
 # ============================================================
 
-def show_unpaid_fines_result(
-    result,
-):
-
-    if not isinstance(
-        result,
-        dict,
-    ):
-
+def show_unpaid_fines_result(result):
+    if not isinstance(result, dict):
         show_error(
             "Unable to retrieve unpaid fines."
         )
-
         return
 
-    if result.get(
-        "success"
-    ) is False:
-
-        show_tool_error(
-            result
-        )
-
+    if result.get("success") is False:
+        show_tool_error(result)
         return
 
-    fines = result.get(
-        "fines",
-        [],
-    )
+    fines = result.get("fines", [])
 
     total = safe_float(
         result.get(
@@ -2143,47 +1936,12 @@ def show_unpaid_fines_result(
     )
 
     if not fines:
-
         show_success(
             "You currently have no unpaid fines."
         )
-
         return
 
     width = console.size.width
-
-    columns = [
-
-        {
-            "header": "Book",
-            "ratio": 4,
-            "overflow": "fold",
-        }
-    ]
-
-    if width >= 100:
-
-        columns.append(
-            {
-                "header": "Author",
-                "ratio": 3,
-                "overflow": "fold",
-            }
-        )
-
-    columns.extend(
-        [
-            {
-                "header": "Fine",
-                "ratio": 1,
-                "justify": "right",
-            },
-            {
-                "header": "Status",
-                "ratio": 2,
-            },
-        ]
-    )
 
     table = Table(
         title="Unpaid Fines",
@@ -2192,14 +1950,31 @@ def show_unpaid_fines_result(
         padding=(0, 1),
     )
 
-    for column in columns:
+    table.add_column(
+        "Book",
+        ratio=4,
+        overflow="fold",
+    )
 
+    if width >= 100:
         table.add_column(
-            **column
+            "Author",
+            ratio=3,
+            overflow="fold",
         )
 
-    for fine in fines:
+    table.add_column(
+        "Fine",
+        ratio=1,
+        justify="right",
+    )
 
+    table.add_column(
+        "Status",
+        ratio=2,
+    )
+
+    for fine in fines:
         amount = safe_float(
             fine.get(
                 "fine_amount",
@@ -2208,7 +1983,6 @@ def show_unpaid_fines_result(
         )
 
         row = [
-
             str(
                 fine.get(
                     "book_title",
@@ -2218,9 +1992,7 @@ def show_unpaid_fines_result(
         ]
 
         if width >= 100:
-
             row.append(
-
                 str(
                     fine.get(
                         "author",
@@ -2236,9 +2008,7 @@ def show_unpaid_fines_result(
             ]
         )
 
-        table.add_row(
-            *row
-        )
+        table.add_row(*row)
 
     console.print(table)
 
@@ -2261,44 +2031,27 @@ def show_unpaid_fines_result(
 # BORROWING HISTORY
 # ============================================================
 
-def show_borrow_history_result(
-    result,
-):
-
-    if not isinstance(
-        result,
-        list,
-    ):
-
-        show_tool_error(
-            result
-        )
-
+def show_borrow_history_result(result):
+    if not isinstance(result, list):
+        show_tool_error(result)
         return
 
     if not result:
-
         show_info(
             "You currently have no borrowing records."
         )
-
         return
 
     width = console.size.width
 
-    # --------------------------------------------------------
-    # Narrow terminal
-    # --------------------------------------------------------
+    table = Table(
+        title="Your Borrowing History",
+        border_style="bright_cyan",
+        expand=True,
+        padding=(0, 1),
+    )
 
     if width < 100:
-
-        table = Table(
-            title="Your Borrowing History",
-            border_style="bright_cyan",
-            expand=True,
-            padding=(0, 1),
-        )
-
         table.add_column(
             "Book",
             ratio=4,
@@ -2327,7 +2080,6 @@ def show_borrow_history_result(
         )
 
         for record in result:
-
             fine = safe_float(
                 record.get(
                     "fine_amount",
@@ -2335,76 +2087,35 @@ def show_borrow_history_result(
                 )
             )
 
-            if fine <= 0:
-
-                status = "[green]No Fine[/green]"
-
-            elif record.get(
-                "fine_paid"
-            ):
-
-                status = "[green]Paid[/green]"
-
-            else:
-
-                status = "[yellow]Unpaid[/yellow]"
+            status = get_fine_display_status(
+                record,
+                fine,
+            )
 
             returned = (
-
                 short_date(
-                    record.get(
-                        "returned_at"
-                    )
+                    record.get("returned_at")
                 )
-
-                if record.get(
-                    "returned_at"
-                )
-
-                else
-
-                "Not returned"
+                if record.get("returned_at")
+                else "Not returned"
             )
 
             table.add_row(
-
                 str(
                     record.get(
                         "book_title",
                         "Unknown",
                     )
                 ),
-
                 short_date(
-                    record.get(
-                        "due_date"
-                    )
+                    record.get("due_date")
                 ),
-
                 returned,
-
                 f"${fine:.2f}",
-
                 status,
             )
 
-        console.print(table)
-
-        return
-
-    # --------------------------------------------------------
-    # Medium terminal
-    # --------------------------------------------------------
-
-    if width < 130:
-
-        table = Table(
-            title="Your Borrowing History",
-            border_style="bright_cyan",
-            expand=True,
-            padding=(0, 1),
-        )
-
+    elif width < 130:
         table.add_column(
             "Book",
             ratio=4,
@@ -2444,7 +2155,6 @@ def show_borrow_history_result(
         )
 
         for record in result:
-
             fine = safe_float(
                 record.get(
                     "fine_amount",
@@ -2452,201 +2162,141 @@ def show_borrow_history_result(
                 )
             )
 
-            if fine <= 0:
-
-                status = "[green]No Fine[/green]"
-
-            elif record.get(
-                "fine_paid"
-            ):
-
-                status = "[green]Paid[/green]"
-
-            else:
-
-                status = "[yellow]Unpaid[/yellow]"
+            status = get_fine_display_status(
+                record,
+                fine,
+            )
 
             returned = (
-
                 short_date(
-                    record.get(
-                        "returned_at"
-                    )
+                    record.get("returned_at")
                 )
-
-                if record.get(
-                    "returned_at"
-                )
-
-                else
-
-                "Not returned"
+                if record.get("returned_at")
+                else "Not returned"
             )
 
             table.add_row(
-
                 str(
                     record.get(
                         "book_title",
                         "Unknown",
                     )
                 ),
-
                 str(
                     record.get(
                         "author",
                         "Unknown",
                     )
                 ),
-
                 short_date(
-                    record.get(
-                        "borrowed_at"
-                    )
+                    record.get("borrowed_at")
                 ),
-
                 short_date(
-                    record.get(
-                        "due_date"
-                    )
+                    record.get("due_date")
                 ),
-
                 returned,
-
                 f"${fine:.2f}",
-
                 status,
             )
 
-        console.print(table)
-
-        return
-
-    # --------------------------------------------------------
-    # Wide terminal
-    # --------------------------------------------------------
-
-    table = Table(
-        title="Your Borrowing History",
-        border_style="bright_cyan",
-        expand=True,
-        padding=(0, 1),
-    )
-
-    table.add_column(
-        "Book",
-        ratio=4,
-        overflow="fold",
-    )
-
-    table.add_column(
-        "Author",
-        ratio=3,
-        overflow="fold",
-    )
-
-    table.add_column(
-        "Borrowed",
-        ratio=2,
-    )
-
-    table.add_column(
-        "Due",
-        ratio=2,
-    )
-
-    table.add_column(
-        "Returned",
-        ratio=2,
-    )
-
-    table.add_column(
-        "Fine",
-        ratio=1,
-        justify="right",
-    )
-
-    table.add_column(
-        "Fine Status",
-        ratio=2,
-    )
-
-    for record in result:
-
-        fine = safe_float(
-            record.get(
-                "fine_amount",
-                0.0,
-            )
+    else:
+        table.add_column(
+            "Book",
+            ratio=4,
+            overflow="fold",
         )
 
-        if fine <= 0:
+        table.add_column(
+            "Author",
+            ratio=3,
+            overflow="fold",
+        )
 
-            status = "[green]No Fine[/green]"
+        table.add_column(
+            "Borrowed",
+            ratio=2,
+        )
 
-        elif record.get(
-            "fine_paid"
-        ):
+        table.add_column(
+            "Due",
+            ratio=2,
+        )
 
-            status = "[green]Paid[/green]"
+        table.add_column(
+            "Returned",
+            ratio=2,
+        )
 
-        else:
+        table.add_column(
+            "Fine",
+            ratio=1,
+            justify="right",
+        )
 
-            status = "[yellow]Unpaid[/yellow]"
+        table.add_column(
+            "Fine Status",
+            ratio=2,
+        )
 
-        returned = (
-
-            short_date(
+        for record in result:
+            fine = safe_float(
                 record.get(
-                    "returned_at"
+                    "fine_amount",
+                    0.0,
                 )
             )
 
-            if record.get(
-                "returned_at"
+            status = get_fine_display_status(
+                record,
+                fine,
             )
 
-            else
-
-            "Not returned"
-        )
-
-        table.add_row(
-
-            str(
-                record.get(
-                    "book_title",
-                    "Unknown",
+            returned = (
+                short_date(
+                    record.get("returned_at")
                 )
-            ),
+                if record.get("returned_at")
+                else "Not returned"
+            )
 
-            str(
-                record.get(
-                    "author",
-                    "Unknown",
-                )
-            ),
-
-            short_date(
-                record.get(
-                    "borrowed_at"
-                )
-            ),
-
-            short_date(
-                record.get(
-                    "due_date"
-                )
-            ),
-
-            returned,
-
-            f"${fine:.2f}",
-
-            status,
-        )
+            table.add_row(
+                str(
+                    record.get(
+                        "book_title",
+                        "Unknown",
+                    )
+                ),
+                str(
+                    record.get(
+                        "author",
+                        "Unknown",
+                    )
+                ),
+                short_date(
+                    record.get("borrowed_at")
+                ),
+                short_date(
+                    record.get("due_date")
+                ),
+                returned,
+                f"${fine:.2f}",
+                status,
+            )
 
     console.print(table)
+
+
+def get_fine_display_status(
+    record,
+    fine,
+):
+    if fine <= 0:
+        return "[green]No Fine[/green]"
+
+    if record.get("fine_paid"):
+        return "[green]Paid[/green]"
+
+    return "[yellow]Unpaid[/yellow]"
 
 
 # ============================================================
@@ -2654,7 +2304,6 @@ def show_borrow_history_result(
 # ============================================================
 
 def menu_search_book():
-
     console.print(
         Rule(
             "🔎 SEARCH BOOKS",
@@ -2667,85 +2316,34 @@ def menu_search_book():
     ).strip()
 
     if not keyword:
-
         show_error(
             "Please enter a search keyword."
         )
-
         return
 
     try:
-
-        result = search_books(
-            keyword
-        )
-
+        result = search_books(keyword)
     except Exception as error:
-
         debug_print(
             "[DEBUG] Search error:",
             repr(error),
         )
-
         show_error(
             "The book search could not be completed."
         )
-
         return
 
-    if isinstance(
-        result,
-        dict,
-    ):
-
-        show_tool_error(
-            result
-        )
-
+    if isinstance(result, dict):
+        show_tool_error(result)
         return
 
     if not result:
-
         show_info(
             f'No books matching "{keyword}" were found.'
         )
-
         return
 
     width = console.size.width
-
-    columns = [
-
-        {
-            "header": "ID",
-            "ratio": 1,
-            "justify": "center",
-        },
-
-        {
-            "header": "Title",
-            "ratio": 4,
-            "overflow": "fold",
-        },
-    ]
-
-    if width >= 100:
-
-        columns.append(
-            {
-                "header": "Author",
-                "ratio": 3,
-                "overflow": "fold",
-            }
-        )
-
-    columns.append(
-        {
-            "header": "Status",
-            "ratio": 2,
-            "justify": "center",
-        }
-    )
 
     table = Table(
         title=f'Search Results: "{keyword}"',
@@ -2754,36 +2352,45 @@ def menu_search_book():
         padding=(0, 1),
     )
 
-    for column in columns:
+    table.add_column(
+        "ID",
+        ratio=1,
+        justify="center",
+    )
 
+    table.add_column(
+        "Title",
+        ratio=4,
+        overflow="fold",
+    )
+
+    if width >= 100:
         table.add_column(
-            **column
+            "Author",
+            ratio=3,
+            overflow="fold",
         )
 
+    table.add_column(
+        "Status",
+        ratio=2,
+        justify="center",
+    )
+
     for book in result:
-
         status = (
-
             "[green]✓ Available[/green]"
-
-            if book.get(
-                "available"
-            )
-
-            else
-
-            "[red]✕ Unavailable[/red]"
+            if book.get("available")
+            else "[red]✕ Unavailable[/red]"
         )
 
         row = [
-
             str(
                 book.get(
                     "id",
                     "?",
                 )
             ),
-
             str(
                 book.get(
                     "title",
@@ -2793,7 +2400,6 @@ def menu_search_book():
         ]
 
         if width >= 100:
-
             row.append(
                 str(
                     book.get(
@@ -2805,9 +2411,7 @@ def menu_search_book():
 
         row.append(status)
 
-        table.add_row(
-            *row
-        )
+        table.add_row(*row)
 
     console.print(table)
 
@@ -2817,7 +2421,6 @@ def menu_search_book():
 # ============================================================
 
 def menu_check_availability():
-
     console.print(
         Rule(
             "📖 CHECK AVAILABILITY",
@@ -2830,89 +2433,43 @@ def menu_check_availability():
     ).strip()
 
     try:
-
-        book_id = int(
-            text
-        )
-
+        book_id = int(text)
     except ValueError:
-
         show_error(
             "Book ID must be a number."
         )
-
         return
 
     try:
-
-        result = check_book_availability(
-            book_id
-        )
-
+        result = check_book_availability(book_id)
     except Exception as error:
-
         debug_print(
             "[DEBUG] Availability error:",
             repr(error),
         )
-
         show_error(
             "The availability check could not be completed."
         )
-
         return
 
-    if not isinstance(
-        result,
-        dict,
-    ):
-
+    if not isinstance(result, dict):
         show_error(
             "The availability check failed."
         )
-
         return
 
-    if result.get(
-        "success"
-    ) is False:
-
-        show_tool_error(
-            result
-        )
-
+    if result.get("success") is False:
+        show_tool_error(result)
         return
 
     status = (
-
         "[green]✓ Available[/green]"
-
-        if result.get(
-            "available"
-        )
-
-        else
-
-        "[red]✕ Unavailable[/red]"
+        if result.get("available")
+        else "[red]✕ Unavailable[/red]"
     )
 
-    table = Table(
-        show_header=False,
-        border_style="bright_blue",
-        expand=True,
-        padding=(0, 1),
-    )
-
-    table.add_column(
-        "Field",
-        ratio=1,
-        style="bold cyan",
-    )
-
-    table.add_column(
-        "Value",
-        ratio=3,
-        overflow="fold",
+    table = create_field_table(
+        border_style="bright_blue"
     )
 
     table.add_row(
@@ -2951,7 +2508,6 @@ def menu_check_availability():
     )
 
     console.print()
-
     console.print(
         Panel(
             table,
@@ -2967,7 +2523,6 @@ def menu_check_availability():
 # ============================================================
 
 def menu_borrow_book():
-
     if not require_login():
         return
 
@@ -2983,16 +2538,12 @@ def menu_borrow_book():
     ).strip()
 
     if not request:
-
         show_error(
             "Please enter a book name."
         )
-
         return
 
-    run_agent(
-        request
-    )
+    run_agent(request)
 
 
 # ============================================================
@@ -3000,7 +2551,6 @@ def menu_borrow_book():
 # ============================================================
 
 def menu_return_book():
-
     if not require_login():
         return
 
@@ -3016,51 +2566,27 @@ def menu_return_book():
     ).strip()
 
     try:
-
-        book_id = int(
-            text
-        )
-
+        book_id = int(text)
     except ValueError:
-
         show_error(
             "Book ID must be a number."
         )
-
         return
 
     result = execute_tool(
         "return_book",
         {
-            "book_id":
-                book_id
+            "book_id": book_id
         },
     )
 
     if (
-
-        isinstance(
-            result,
-            dict,
-        )
-
-        and
-
-        result.get(
-            "success"
-        ) is True
-
+        isinstance(result, dict)
+        and result.get("success") is True
     ):
-
-        show_return_result(
-            result
-        )
-
+        show_return_result(result)
     else:
-
-        show_tool_error(
-            result
-        )
+        show_tool_error(result)
 
 
 # ============================================================
@@ -3068,7 +2594,6 @@ def menu_return_book():
 # ============================================================
 
 def menu_borrow_history():
-
     if not require_login():
         return
 
@@ -3084,9 +2609,7 @@ def menu_borrow_history():
         {},
     )
 
-    show_borrow_history_result(
-        result
-    )
+    show_borrow_history_result(result)
 
 
 # ============================================================
@@ -3094,7 +2617,6 @@ def menu_borrow_history():
 # ============================================================
 
 def menu_available_books():
-
     console.print(
         Rule(
             "✅ AVAILABLE BOOKS",
@@ -3107,59 +2629,17 @@ def menu_available_books():
         {},
     )
 
-    if isinstance(
-        result,
-        dict,
-    ):
-
-        show_tool_error(
-            result
-        )
-
+    if isinstance(result, dict):
+        show_tool_error(result)
         return
 
     if not result:
-
         show_info(
             "There are currently no books available."
         )
-
         return
 
     width = console.size.width
-
-    columns = [
-
-        {
-            "header": "ID",
-            "ratio": 1,
-            "justify": "center",
-        },
-
-        {
-            "header": "Title",
-            "ratio": 4,
-            "overflow": "fold",
-        },
-    ]
-
-    if width >= 100:
-
-        columns.append(
-            {
-                "header": "Author",
-                "ratio": 3,
-                "overflow": "fold",
-            }
-        )
-
-    columns.append(
-        {
-            "header": "Status",
-            "ratio": 2,
-            "justify": "center",
-        }
-    )
 
     table = Table(
         title="Books Currently Available",
@@ -3168,23 +2648,39 @@ def menu_available_books():
         padding=(0, 1),
     )
 
-    for column in columns:
+    table.add_column(
+        "ID",
+        ratio=1,
+        justify="center",
+    )
 
+    table.add_column(
+        "Title",
+        ratio=4,
+        overflow="fold",
+    )
+
+    if width >= 100:
         table.add_column(
-            **column
+            "Author",
+            ratio=3,
+            overflow="fold",
         )
 
+    table.add_column(
+        "Status",
+        ratio=2,
+        justify="center",
+    )
+
     for book in result:
-
         row = [
-
             str(
                 book.get(
                     "id",
                     "?",
                 )
             ),
-
             str(
                 book.get(
                     "title",
@@ -3194,7 +2690,6 @@ def menu_available_books():
         ]
 
         if width >= 100:
-
             row.append(
                 str(
                     book.get(
@@ -3208,9 +2703,7 @@ def menu_available_books():
             "[green]✓ Available[/green]"
         )
 
-        table.add_row(
-            *row
-        )
+        table.add_row(*row)
 
     console.print(table)
 
@@ -3220,7 +2713,6 @@ def menu_available_books():
 # ============================================================
 
 def menu_current_borrowed_books():
-
     if not require_login():
         return
 
@@ -3236,9 +2728,7 @@ def menu_current_borrowed_books():
         {},
     )
 
-    show_current_borrowed_books_result(
-        result
-    )
+    show_current_borrowed_books_result(result)
 
 
 # ============================================================
@@ -3246,7 +2736,6 @@ def menu_current_borrowed_books():
 # ============================================================
 
 def menu_overdue_books():
-
     if not require_login():
         return
 
@@ -3262,9 +2751,7 @@ def menu_overdue_books():
         {},
     )
 
-    show_overdue_books_result(
-        result
-    )
+    show_overdue_books_result(result)
 
 
 # ============================================================
@@ -3272,7 +2759,6 @@ def menu_overdue_books():
 # ============================================================
 
 def menu_fines():
-
     if not require_login():
         return
 
@@ -3288,9 +2774,7 @@ def menu_fines():
         {},
     )
 
-    show_unpaid_fines_result(
-        result
-    )
+    show_unpaid_fines_result(result)
 
 
 # ============================================================
@@ -3298,22 +2782,16 @@ def menu_fines():
 # ============================================================
 
 def ai_chat_mode():
-
     if not require_login():
-
         return "back"
 
     console.print()
 
     console.print(
-
         Panel(
-
             (
                 "[bold]AI Library Agent Chat[/bold]\n\n"
-
                 "Ask me about:\n\n"
-
                 "• books\n"
                 "• availability\n"
                 "• borrowing\n"
@@ -3324,32 +2802,23 @@ def ai_chat_mode():
                 "• payments\n"
                 "• recommendations\n"
                 "• borrowing history\n\n"
-
                 "[yellow]back[/yellow] → "
-                "return to main menu\n"
-
+                "return to main menu\n\n"
                 "[yellow]exit[/yellow] → "
                 "close the application"
             ),
-
             title="🤖 AI CHAT MODE",
-
             border_style="bright_blue",
-
             padding=(1, 2),
         )
     )
 
     while True:
-
         try:
-
             user_input = Prompt.ask(
                 "[bold bright_cyan]You[/bold bright_cyan]"
             ).strip()
-
         except KeyboardInterrupt:
-
             return "exit"
 
         if not user_input:
@@ -3364,41 +2833,30 @@ def ai_chat_mode():
             "exit",
             "quit",
         }:
-
             return "exit"
 
-        run_agent(
-            user_input
-        )
+        run_agent(user_input)
 
 
 # ============================================================
 # RUN AGENT
 # ============================================================
 
-def run_agent(
-    user_request,
-):
-
+def run_agent(user_request):
     global messages
 
     if not require_login():
         return
 
     # ========================================================
-    # ALTERNATIVE CONFIRMATION
+    # HANDLE PENDING CONFIRMATION
     # ========================================================
 
     if (
         state.waiting_for_confirmation
-        and
-        not state.completed
+        and not state.completed
     ):
-
-        if is_yes_response(
-            user_request
-        ):
-
+        if is_yes_response(user_request):
             state.clear_confirmation()
 
             show_agent_action(
@@ -3410,49 +2868,34 @@ def run_agent(
                 {},
             )
 
-            if not isinstance(
-                result,
-                list,
-            ):
-
-                show_tool_error(
-                    result
-                )
-
+            if not isinstance(result, list):
+                show_tool_error(result)
                 state.complete()
-
                 return
 
             if not result:
-
                 show_info(
                     "There are currently no books "
                     "available as an alternative."
                 )
-
                 state.complete()
-
                 return
 
             alternative = select_alternative(
                 result,
                 state.requested_book_id,
+                state.requested_book,
             )
 
             if alternative is None:
-
                 show_info(
                     "No suitable alternative is "
                     "currently available."
                 )
-
                 state.complete()
-
                 return
 
-            state.set_alternative(
-                alternative
-            )
+            state.set_alternative(alternative)
 
             show_agent_action(
                 (
@@ -3468,29 +2911,19 @@ def run_agent(
             borrow_result = execute_tool(
                 "borrow_book",
                 {
-                    "book_id":
-                        alternative.get("id")
+                    "book_id": alternative.get("id")
                 },
             )
 
             if (
-                isinstance(
-                    borrow_result,
-                    dict,
-                )
-                and
-                borrow_result.get(
-                    "success"
-                ) is True
+                isinstance(borrow_result, dict)
+                and borrow_result.get("success") is True
             ):
-
                 state.set_loan_dates(
-
                     borrowed_at=
                         borrow_result.get(
                             "borrowed_at"
                         ),
-
                     due_date=
                         borrow_result.get(
                             "due_date"
@@ -3506,14 +2939,10 @@ def run_agent(
 
                 book = borrow_result.get(
                     "book",
-                    {}
+                    {},
                 )
 
-                if not isinstance(
-                    book,
-                    dict
-                ):
-
+                if not isinstance(book, dict):
                     book = {}
 
                 add_assistant_history(
@@ -3526,20 +2955,12 @@ def run_agent(
 
                 return
 
-            show_tool_error(
-                borrow_result
-            )
-
+            show_tool_error(borrow_result)
             state.complete()
-
             return
 
-        if is_no_response(
-            user_request
-        ):
-
+        if is_no_response(user_request):
             state.clear_confirmation()
-
             state.complete()
 
             show_info(
@@ -3551,6 +2972,10 @@ def run_agent(
             )
 
             return
+
+        # The user did not answer yes/no.
+        # Treat the message as a brand-new task.
+        state.reset_task()
 
     # ========================================================
     # START NEW TASK
@@ -3565,10 +2990,8 @@ def run_agent(
 
     messages.append(
         {
-            "role":
-                "user",
-            "content":
-                user_request,
+            "role": "user",
+            "content": user_request,
         }
     )
 
@@ -3582,20 +3005,14 @@ def run_agent(
         1,
         MAX_STEPS + 1,
     ):
-
         debug_print()
-
-        debug_print(
-            "=" * 60
-        )
-
+        debug_print("=" * 60)
         debug_print(
             f"[DEBUG] Agent Step {step}"
         )
-
         debug_print(
             "[DEBUG] State:",
-            state.show()
+            state.show(),
         )
 
         # ====================================================
@@ -3603,7 +3020,6 @@ def run_agent(
         # ====================================================
 
         try:
-
             response = (
                 client
                 .chat
@@ -3617,15 +3033,14 @@ def run_agent(
                         "thinking": {
                             "type": "enabled"
                         }
-                    }
+                    },
                 )
             )
 
         except Exception as error:
-
             debug_print(
                 "[DEBUG] AI API error:",
-                repr(error)
+                repr(error),
             )
 
             show_error(
@@ -3638,27 +3053,19 @@ def run_agent(
             return
 
         if not response.choices:
-
             show_error(
                 "The AI service returned an empty response."
             )
-
             return
 
-        message = (
-            response
-            .choices[0]
-            .message
-        )
+        message = response.choices[0].message
 
         # ====================================================
         # PRESERVE ASSISTANT MESSAGE
         # ====================================================
 
         messages.append(
-            build_assistant_message(
-                message
-            )
+            build_assistant_message(message)
         )
 
         # ====================================================
@@ -3666,20 +3073,16 @@ def run_agent(
         # ====================================================
 
         if not message.tool_calls:
-
             if message.content:
-
                 console.print()
 
                 console.print(
-
                     Panel(
                         message.content,
                         title="🤖 AI AGENT",
                         border_style="bright_blue",
                         padding=(1, 2),
                     )
-
                 )
 
             return
@@ -3691,7 +3094,6 @@ def run_agent(
         tool_results = []
 
         for tool_call in message.tool_calls:
-
             function_name = (
                 tool_call
                 .function
@@ -3709,7 +3111,6 @@ def run_agent(
             # ------------------------------------------------
 
             try:
-
                 arguments = json.loads(
                     raw_arguments
                 )
@@ -3719,179 +3120,115 @@ def run_agent(
                 TypeError,
                 ValueError,
             ) as error:
-
                 debug_print(
                     "[DEBUG] Invalid tool arguments:",
                     repr(error),
                 )
 
                 result = {
-
-                    "success":
-                        False,
-
-                    "error_type":
-                        "ValidationError",
-
+                    "success": False,
+                    "error_type": "ValidationError",
                     "message":
                         "The AI generated invalid tool parameters.",
-
                     "_debug_error":
                         repr(error),
                 }
 
-                tool_results.append({
-
-                    "tool_call":
-                        tool_call,
-
-                    "function_name":
-                        function_name,
-
-                    "result":
-                        result,
-
-                    "is_error":
-                        True,
-                })
+                tool_results.append(
+                    {
+                        "tool_call": tool_call,
+                        "function_name": function_name,
+                        "result": result,
+                        "is_error": True,
+                    }
+                )
 
                 continue
 
-            if not isinstance(
-                arguments,
-                dict,
-            ):
-
+            if not isinstance(arguments, dict):
                 result = {
-
-                    "success":
-                        False,
-
-                    "error_type":
-                        "ValidationError",
-
+                    "success": False,
+                    "error_type": "ValidationError",
                     "message":
                         "The AI generated invalid tool parameters.",
                 }
 
-                tool_results.append({
-
-                    "tool_call":
-                        tool_call,
-
-                    "function_name":
-                        function_name,
-
-                    "result":
-                        result,
-
-                    "is_error":
-                        True,
-                })
+                tool_results.append(
+                    {
+                        "tool_call": tool_call,
+                        "function_name": function_name,
+                        "result": result,
+                        "is_error": True,
+                    }
+                )
 
                 continue
 
             # ------------------------------------------------
-            # DUPLICATE PROTECTION
+            # DUPLICATE TOOL CALL PROTECTION
             # ------------------------------------------------
 
             signature = (
-
                 function_name,
-
                 json.dumps(
                     arguments,
                     sort_keys=True,
-                )
+                ),
             )
 
             if signature in used_tool_calls:
-
                 result = {
-
-                    "success":
-                        False,
-
-                    "error_type":
-                        "ToolError",
-
+                    "success": False,
+                    "error_type": "ToolError",
                     "message":
                         "Duplicate tool call blocked.",
                 }
 
             else:
-
-                used_tool_calls.add(
-                    signature
-                )
+                used_tool_calls.add(signature)
 
                 action = get_action_message(
                     function_name
                 )
 
                 if action:
-
-                    show_agent_action(
-                        action
-                    )
+                    show_agent_action(action)
 
                 result = execute_tool(
                     function_name,
-                    arguments
+                    arguments,
                 )
 
-            tool_results.append({
-
-                "tool_call":
-                    tool_call,
-
-                "function_name":
-                    function_name,
-
-                "result":
-                    result,
-
-                "is_error":
-                    (
-                        isinstance(
-                            result,
-                            dict,
-                        )
-                        and
-                        result.get(
-                            "success"
-                        ) is False
+            tool_results.append(
+                {
+                    "tool_call": tool_call,
+                    "function_name": function_name,
+                    "result": result,
+                    "is_error": (
+                        isinstance(result, dict)
+                        and result.get("success") is False
                     ),
-            })
+                }
+            )
 
         # ====================================================
-        # TOOL MESSAGES
+        # ADD TOOL MESSAGES
         # ====================================================
 
         for item in tool_results:
+            tool_call = item["tool_call"]
+            result = item["result"]
 
-            tool_call = item[
-                "tool_call"
-            ]
-
-            result = item[
-                "result"
-            ]
-
-            messages.append({
-
-                "role":
-                    "tool",
-
-                "tool_call_id":
-                    tool_call.id,
-
-                "content":
-                    json.dumps(
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(
                         result,
                         ensure_ascii=False,
                     ),
-            })
+                }
+            )
 
         # ====================================================
         # RESULT TRACKING
@@ -3900,33 +3237,19 @@ def run_agent(
         first_error = None
 
         direct_query_function = None
-
         direct_query_result = None
 
         successful_write_function = None
-
         successful_write_result = None
 
         for item in tool_results:
-
-            function_name = item[
-                "function_name"
-            ]
-
-            result = item[
-                "result"
-            ]
-
-            # ------------------------------------------------
-            # ERROR
-            # ------------------------------------------------
+            function_name = item["function_name"]
+            result = item["result"]
 
             if (
                 item["is_error"]
-                and
-                first_error is None
+                and first_error is None
             ):
-
                 first_error = result
 
             # ------------------------------------------------
@@ -3934,82 +3257,47 @@ def run_agent(
             # ------------------------------------------------
 
             if function_name == "search_books":
-
-                state.last_action = (
-                    "search_books"
-                )
+                state.last_action = "search_books"
 
                 if (
-                    isinstance(
-                        result,
-                        list,
-                    )
-                    and
-                    result
-                    and
-                    state.requested_book is None
+                    isinstance(result, list)
+                    and len(result) == 1
                 ):
-
                     state.update_requested_book(
                         result[0]
                     )
+
+                # If multiple books are returned,
+                # do not assume result[0] is the requested book.
+                # The LLM must resolve the ambiguity.
 
             # ------------------------------------------------
             # AVAILABILITY
             # ------------------------------------------------
 
             elif function_name == "check_book_availability":
-
                 state.last_action = (
                     "check_book_availability"
                 )
 
                 if (
-                    isinstance(
-                        result,
-                        dict,
-                    )
-                    and
-                    result.get(
-                        "success"
-                    ) is True
+                    isinstance(result, dict)
+                    and result.get("success") is True
                 ):
-
-                    if hasattr(
-                        state,
-                        "update_requested_book_from_result"
-                    ):
-
-                        state.update_requested_book_from_result(
-                            result
-                        )
-
-                    else:
-
-                        state.update_requested_book(
-                            result
-                        )
+                    state.update_requested_book_from_result(
+                        result
+                    )
 
                     state.update_requested_book_availability(
-                        result.get(
-                            "available"
-                        )
+                        result.get("available")
                     )
 
-                    if result.get(
-                        "available"
-                    ) is False:
-
-                        lower_request = (
-                            user_request.lower()
-                        )
+                    if result.get("available") is False:
+                        lower_request = user_request.lower()
 
                         alternative_requested = any(
-
                             phrase in lower_request
-
                             for phrase in [
-
                                 "alternative",
                                 "another",
                                 "different book",
@@ -4017,12 +3305,10 @@ def run_agent(
                                 "find another",
                                 "find an alternative",
                                 "instead",
-
                             ]
                         )
 
                         if not alternative_requested:
-
                             state.wait_for_confirmation()
 
             # ------------------------------------------------
@@ -4030,29 +3316,17 @@ def run_agent(
             # ------------------------------------------------
 
             elif function_name == "borrow_book":
-
-                state.last_action = (
-                    "borrow_book"
-                )
+                state.last_action = "borrow_book"
 
                 if (
-                    isinstance(
-                        result,
-                        dict,
-                    )
-                    and
-                    result.get(
-                        "success"
-                    ) is True
+                    isinstance(result, dict)
+                    and result.get("success") is True
                 ):
-
                     state.set_loan_dates(
-
                         borrowed_at=
                             result.get(
                                 "borrowed_at"
                             ),
-
                         due_date=
                             result.get(
                                 "due_date"
@@ -4065,43 +3339,28 @@ def run_agent(
                         "borrow_book"
                     )
 
-                    successful_write_result = (
-                        result
-                    )
+                    successful_write_result = result
 
             # ------------------------------------------------
             # RETURN
             # ------------------------------------------------
 
             elif function_name == "return_book":
-
-                state.last_action = (
-                    "return_book"
-                )
+                state.last_action = "return_book"
 
                 if (
-                    isinstance(
-                        result,
-                        dict,
-                    )
-                    and
-                    result.get(
-                        "success"
-                    ) is True
+                    isinstance(result, dict)
+                    and result.get("success") is True
                 ):
-
                     state.set_loan_dates(
-
                         borrowed_at=
                             result.get(
                                 "borrowed_at"
                             ),
-
                         due_date=
                             result.get(
                                 "due_date"
                             ),
-
                         returned_at=
                             result.get(
                                 "returned_at"
@@ -4109,12 +3368,10 @@ def run_agent(
                     )
 
                     state.set_overdue_status(
-
                         result.get(
                             "is_overdue",
                             False,
                         ),
-
                         result.get(
                             "late_days",
                             0,
@@ -4122,12 +3379,10 @@ def run_agent(
                     )
 
                     state.set_fine(
-
                         result.get(
                             "fine_amount",
                             0.0,
                         ),
-
                         False,
                     )
 
@@ -4137,47 +3392,31 @@ def run_agent(
                         "return_book"
                     )
 
-                    successful_write_result = (
-                        result
-                    )
+                    successful_write_result = result
 
             # ------------------------------------------------
             # PAYMENT
             # ------------------------------------------------
 
             elif function_name == "pay_fine":
-
-                state.last_action = (
-                    "pay_fine"
-                )
+                state.last_action = "pay_fine"
 
                 if (
-                    isinstance(
-                        result,
-                        dict,
-                    )
-                    and
-                    result.get(
-                        "success"
-                    ) is True
+                    isinstance(result, dict)
+                    and result.get("success") is True
                 ):
-
                     state.set_fine(
-
                         result.get(
                             "fine_amount",
                             0.0,
                         ),
-
                         True,
-
                         result.get(
                             "fine_paid_at"
                         ),
                     )
 
                     state.set_payment(
-
                         result.get(
                             "payment_amount",
                             result.get(
@@ -4185,7 +3424,6 @@ def run_agent(
                                 0.0,
                             ),
                         ),
-
                         result.get(
                             "payment_status",
                             "Paid",
@@ -4198,39 +3436,28 @@ def run_agent(
                         "pay_fine"
                     )
 
-                    successful_write_result = (
-                        result
-                    )
+                    successful_write_result = result
 
             # ------------------------------------------------
             # DIRECT QUERY
             # ------------------------------------------------
 
             elif function_name in {
-
                 "get_current_borrowed_books",
                 "get_overdue_books",
                 "get_book_loan_details",
                 "calculate_fine",
                 "get_unpaid_fines",
                 "get_borrow_history",
-
             }:
-
-                direct_query_function = (
-                    function_name
-                )
-
-                direct_query_result = (
-                    result
-                )
+                direct_query_function = function_name
+                direct_query_result = result
 
             # ------------------------------------------------
             # AVAILABLE BOOKS
             # ------------------------------------------------
 
             elif function_name == "list_available_books":
-
                 state.last_action = (
                     "list_available_books"
                 )
@@ -4240,7 +3467,6 @@ def run_agent(
         # ====================================================
 
         if successful_write_function == "borrow_book":
-
             show_borrow_result(
                 state,
                 successful_write_result,
@@ -4251,20 +3477,14 @@ def run_agent(
                 {},
             )
 
-            if not isinstance(
-                book,
-                dict,
-            ):
-
+            if not isinstance(book, dict):
                 book = {}
 
             add_assistant_history(
-
                 (
-                    f'I successfully borrowed '
+                    "The user successfully borrowed "
                     f'"{book.get("title", "Unknown")}".'
                 )
-
             )
 
             return
@@ -4274,7 +3494,6 @@ def run_agent(
         # ====================================================
 
         if successful_write_function == "return_book":
-
             show_return_result(
                 successful_write_result
             )
@@ -4284,15 +3503,10 @@ def run_agent(
                 {},
             )
 
-            if not isinstance(
-                book,
-                dict,
-            ):
-
+            if not isinstance(book, dict):
                 book = {}
 
             amount = safe_float(
-
                 successful_write_result.get(
                     "fine_amount",
                     0.0,
@@ -4300,27 +3514,20 @@ def run_agent(
             )
 
             if amount > 0:
-
                 summary = (
-
-                    f'I successfully returned '
+                    "The user successfully returned "
                     f'"{book.get("title", "Unknown")}". '
-                    f'The final fine is '
-                    f'${amount:.2f} and it is unpaid.'
+                    f"The final fine is "
+                    f"${amount:.2f} and it is unpaid."
                 )
-
             else:
-
                 summary = (
-
-                    f'I successfully returned '
+                    "The user successfully returned "
                     f'"{book.get("title", "Unknown")}". '
-                    f'There is no fine.'
+                    "There is no fine."
                 )
 
-            add_assistant_history(
-                summary
-            )
+            add_assistant_history(summary)
 
             return
 
@@ -4329,7 +3536,6 @@ def run_agent(
         # ====================================================
 
         if successful_write_function == "pay_fine":
-
             show_payment_result(
                 successful_write_result
             )
@@ -4339,15 +3545,10 @@ def run_agent(
                 {},
             )
 
-            if not isinstance(
-                book,
-                dict,
-            ):
-
+            if not isinstance(book, dict):
                 book = {}
 
             amount = safe_float(
-
                 successful_write_result.get(
                     "payment_amount",
                     successful_write_result.get(
@@ -4358,13 +3559,11 @@ def run_agent(
             )
 
             add_assistant_history(
-
                 (
-                    f'The fine for '
+                    "The fine for "
                     f'"{book.get("title", "Unknown")}" '
-                    f'was successfully paid. '
-                    f'Payment amount: '
-                    f'${amount:.2f}.'
+                    "was successfully paid. "
+                    f"Payment amount: ${amount:.2f}."
                 )
             )
 
@@ -4374,10 +3573,10 @@ def run_agent(
         # CURRENT BORROWED BOOKS
         # ====================================================
 
-        if direct_query_function == (
-            "get_current_borrowed_books"
+        if (
+            direct_query_function
+            == "get_current_borrowed_books"
         ):
-
             show_current_borrowed_books_result(
                 direct_query_result
             )
@@ -4386,13 +3585,11 @@ def run_agent(
                 direct_query_result,
                 list,
             ):
-
                 add_assistant_history(
-
                     (
-                        f'The user currently has '
-                        f'{len(direct_query_result)} '
-                        f'borrowed book(s).'
+                        "The user currently has "
+                        f"{len(direct_query_result)} "
+                        "borrowed book(s)."
                     )
                 )
 
@@ -4402,10 +3599,10 @@ def run_agent(
         # OVERDUE
         # ====================================================
 
-        if direct_query_function == (
-            "get_overdue_books"
+        if (
+            direct_query_function
+            == "get_overdue_books"
         ):
-
             show_overdue_books_result(
                 direct_query_result
             )
@@ -4414,13 +3611,11 @@ def run_agent(
                 direct_query_result,
                 list,
             ):
-
                 add_assistant_history(
-
                     (
-                        f'The user currently has '
-                        f'{len(direct_query_result)} '
-                        f'overdue book(s).'
+                        "The user currently has "
+                        f"{len(direct_query_result)} "
+                        "overdue book(s)."
                     )
                 )
 
@@ -4430,10 +3625,10 @@ def run_agent(
         # LOAN DETAILS
         # ====================================================
 
-        if direct_query_function == (
-            "get_book_loan_details"
+        if (
+            direct_query_function
+            == "get_book_loan_details"
         ):
-
             show_fine_result(
                 direct_query_result
             )
@@ -4443,21 +3638,18 @@ def run_agent(
                     direct_query_result,
                     dict,
                 )
-                and
-                direct_query_result.get(
+                and direct_query_result.get(
                     "success"
                 ) is True
             ):
-
                 title = direct_query_result.get(
                     "book_title",
                     "the book",
                 )
 
                 add_assistant_history(
-
                     (
-                        f'Loan information for '
+                        "Loan information for "
                         f'"{title}" was retrieved.'
                     )
                 )
@@ -4468,10 +3660,10 @@ def run_agent(
         # CALCULATE FINE
         # ====================================================
 
-        if direct_query_function == (
-            "calculate_fine"
+        if (
+            direct_query_function
+            == "calculate_fine"
         ):
-
             show_fine_result(
                 direct_query_result
             )
@@ -4481,19 +3673,16 @@ def run_agent(
                     direct_query_result,
                     dict,
                 )
-                and
-                direct_query_result.get(
+                and direct_query_result.get(
                     "success"
                 ) is True
             ):
-
                 title = direct_query_result.get(
                     "book_title",
                     "the book",
                 )
 
                 amount = safe_float(
-
                     direct_query_result.get(
                         "fine_amount",
                         0.0,
@@ -4501,11 +3690,10 @@ def run_agent(
                 )
 
                 add_assistant_history(
-
                     (
-                        f'The fine for '
+                        "The fine for "
                         f'"{title}" is '
-                        f'${amount:.2f}.'
+                        f"${amount:.2f}."
                     )
                 )
 
@@ -4515,10 +3703,10 @@ def run_agent(
         # UNPAID FINES
         # ====================================================
 
-        if direct_query_function == (
-            "get_unpaid_fines"
+        if (
+            direct_query_function
+            == "get_unpaid_fines"
         ):
-
             show_unpaid_fines_result(
                 direct_query_result
             )
@@ -4528,19 +3716,16 @@ def run_agent(
                     direct_query_result,
                     dict,
                 )
-                and
-                direct_query_result.get(
+                and direct_query_result.get(
                     "success"
                 ) is True
             ):
-
                 fines = direct_query_result.get(
                     "fines",
-                    []
+                    [],
                 )
 
                 total = safe_float(
-
                     direct_query_result.get(
                         "total_fine",
                         0.0,
@@ -4548,12 +3733,10 @@ def run_agent(
                 )
 
                 add_assistant_history(
-
                     (
-                        f'The user has '
-                        f'{len(fines)} unpaid fine(s) '
-                        f'totalling '
-                        f'${total:.2f}.'
+                        "The user has "
+                        f"{len(fines)} unpaid fine(s) "
+                        f"totalling ${total:.2f}."
                     )
                 )
 
@@ -4563,10 +3746,10 @@ def run_agent(
         # BORROW HISTORY
         # ====================================================
 
-        if direct_query_function == (
-            "get_borrow_history"
+        if (
+            direct_query_function
+            == "get_borrow_history"
         ):
-
             show_borrow_history_result(
                 direct_query_result
             )
@@ -4575,13 +3758,11 @@ def run_agent(
                 direct_query_result,
                 list,
             ):
-
                 add_assistant_history(
-
                     (
-                        f'The user has '
-                        f'{len(direct_query_result)} '
-                        f'loan record(s) in their history.'
+                        "The user has "
+                        f"{len(direct_query_result)} "
+                        "loan record(s) in their history."
                     )
                 )
 
@@ -4592,18 +3773,10 @@ def run_agent(
         # ====================================================
 
         if first_error is not None:
+            show_tool_error(first_error)
 
-            show_tool_error(
-                first_error
-            )
-
-            if isinstance(
-                first_error,
-                dict,
-            ):
-
+            if isinstance(first_error, dict):
                 add_assistant_history(
-
                     first_error.get(
                         "message",
                         "The library operation failed.",
@@ -4613,41 +3786,30 @@ def run_agent(
             return
 
         # ====================================================
-        # ALTERNATIVE CONFIRMATION
+        # UNAVAILABLE BOOK CONFIRMATION
         # ====================================================
 
         if (
             state.waiting_for_confirmation
-            and
-            not state.completed
+            and not state.completed
         ):
-
             requested_title = (
-
                 state.requested_book
-
-                or
-
-                "The requested book"
+                or "The requested book"
             )
 
             console.print()
 
             console.print(
-
                 Panel(
-
                     (
                         f'"{requested_title}" '
-                        f'is currently unavailable.\n\n'
-                        f'Would you like me to find an '
-                        f'available alternative?'
+                        "is currently unavailable.\n\n"
+                        "Would you like me to find an "
+                        "available alternative?"
                     ),
-
                     title="📖 BOOK UNAVAILABLE",
-
                     border_style="yellow",
-
                     padding=(1, 2),
                 )
             )
@@ -4659,18 +3821,16 @@ def run_agent(
     # ========================================================
 
     show_error(
-
         "I could not complete the request within "
         "the allowed number of steps."
     )
 
 
 # ============================================================
-# AUTH MENU
+# AUTHENTICATION UI
 # ============================================================
 
 def show_auth_menu():
-
     table = Table(
         show_header=False,
         box=None,
@@ -4688,29 +3848,21 @@ def show_auth_menu():
     )
 
     for option, action in [
-
         ("1", "🔐 Login"),
         ("2", "📝 Register"),
         ("3", "🧪 Continue as Demo"),
         ("4", "🚪 Exit"),
-
     ]:
-
         table.add_row(
             option,
             action,
         )
 
     console.print(
-
         Panel(
-
             table,
-
             title="[bold bright_cyan]WELCOME[/bold bright_cyan]",
-
             border_style="bright_cyan",
-
             padding=(1, 2),
         )
     )
@@ -4721,7 +3873,6 @@ def show_auth_menu():
 # ============================================================
 
 def show_main_menu():
-
     table = Table(
         show_header=False,
         box=None,
@@ -4739,7 +3890,6 @@ def show_main_menu():
     )
 
     for option, action in [
-
         ("1", "🔎 Search for a book"),
         ("2", "📖 Check book availability"),
         ("3", "📚 Borrow a book"),
@@ -4751,24 +3901,17 @@ def show_main_menu():
         ("9", "⏰ My overdue books"),
         ("10", "🤖 Chat with AI Agent"),
         ("11", "🔓 Logout"),
-
     ]:
-
         table.add_row(
             option,
             action,
         )
 
     console.print(
-
         Panel(
-
             table,
-
             title="[bold bright_cyan]MAIN MENU[/bold bright_cyan]",
-
             border_style="bright_cyan",
-
             padding=(1, 2),
         )
     )
@@ -4779,51 +3922,33 @@ def show_main_menu():
 # ============================================================
 
 def show_header():
-
     console.clear()
-
     console.print()
 
     user_text = "Not logged in"
 
     if state.is_logged_in():
-
         user_text = (
-
             state.current_user_name
-
-            or
-
-            state.current_username
-
-            or
-
-            "User"
+            or state.current_username
+            or "User"
         )
 
     console.print(
-
         Panel(
-
             Align.center(
-
                 Text.from_markup(
-
                     "[bold bright_white]"
                     "📚 AI LIBRARY AGENT"
                     "[/bold bright_white]\n"
-
                     "[dim]"
                     "Intelligent Library Assistant"
                     "[/dim]\n\n"
-
                     "[bright_cyan]User:[/bright_cyan] "
                     f"{user_text}"
                 )
             ),
-
             border_style="bright_blue",
-
             padding=(1, 3),
         )
     )
@@ -4833,31 +3958,17 @@ def show_header():
 # AUTHENTICATED USER
 # ============================================================
 
-def set_authenticated_user(
-    user
-):
-
-    if not isinstance(
-        user,
-        dict,
-    ):
-
+def set_authenticated_user(user):
+    if not isinstance(user, dict):
         return False
 
     state.reset_all()
-
     reset_conversation()
 
     state.set_current_user(
-
-        user_id=
-            user.get("id"),
-
-        username=
-            user.get("username"),
-
-        full_name=
-            user.get("full_name"),
+        user_id=user.get("id"),
+        username=user.get("username"),
+        full_name=user.get("full_name"),
     )
 
     return state.is_logged_in()
@@ -4868,17 +3979,14 @@ def set_authenticated_user(
 # ============================================================
 
 def login_user():
-
     username = Prompt.ask(
         "Username"
     ).strip()
 
     if not username:
-
         show_error(
             "Username cannot be empty."
         )
-
         return False
 
     password = Prompt.ask(
@@ -4887,14 +3995,11 @@ def login_user():
     )
 
     try:
-
         result = authenticate_user(
             username,
             password,
         )
-
     except Exception as error:
-
         debug_print(
             "[DEBUG] Login error:",
             repr(error),
@@ -4903,36 +4008,20 @@ def login_user():
         show_error(
             "The login service is temporarily unavailable."
         )
-
         return False
 
     if (
-        not isinstance(
-            result,
-            dict,
-        )
-        or
-        result.get(
-            "success"
-        ) is not True
+        not isinstance(result, dict)
+        or result.get("success") is not True
     ):
-
         show_error(
-
             result.get(
                 "message",
                 "Login failed.",
             )
-
-            if isinstance(
-                result,
-                dict,
-            )
-
-            else
-            "Login failed."
+            if isinstance(result, dict)
+            else "Login failed."
         )
-
         return False
 
     if not set_authenticated_user(
@@ -4941,18 +4030,15 @@ def login_user():
             {}
         )
     ):
-
         show_error(
             "The account information could not be loaded."
         )
-
         return False
 
     show_success(
-
         (
-            f'Welcome back, '
-            f'{state.current_user_name or state.current_username or "User"}!'
+            "Welcome back, "
+            f"{state.current_user_name or state.current_username or 'User'}!"
         )
     )
 
@@ -4964,13 +4050,9 @@ def login_user():
 # ============================================================
 
 def login_demo():
-
     try:
-
         result = login_demo_user()
-
     except Exception as error:
-
         debug_print(
             "[DEBUG] Demo login error:",
             repr(error),
@@ -4979,36 +4061,20 @@ def login_demo():
         show_error(
             "The demo account could not be loaded."
         )
-
         return False
 
     if (
-        not isinstance(
-            result,
-            dict,
-        )
-        or
-        result.get(
-            "success"
-        ) is not True
+        not isinstance(result, dict)
+        or result.get("success") is not True
     ):
-
         show_error(
-
             result.get(
                 "message",
                 "Demo login failed.",
             )
-
-            if isinstance(
-                result,
-                dict,
-            )
-
-            else
-            "Demo login failed."
+            if isinstance(result, dict)
+            else "Demo login failed."
         )
-
         return False
 
     if not set_authenticated_user(
@@ -5017,11 +4083,9 @@ def login_demo():
             {}
         )
     ):
-
         show_error(
             "Demo account information could not be loaded."
         )
-
         return False
 
     show_success(
@@ -5036,11 +4100,9 @@ def login_demo():
 # ============================================================
 
 def register_account():
-
     console.print()
 
     console.print(
-
         Rule(
             "📝 CREATE ACCOUNT",
             style="bright_cyan",
@@ -5066,11 +4128,9 @@ def register_account():
     )
 
     if password != confirm_password:
-
         show_error(
             "Passwords do not match."
         )
-
         return False
 
     email = Prompt.ask(
@@ -5082,20 +4142,13 @@ def register_account():
         email = None
 
     try:
-
         result = register_user(
-
             username=username,
-
             password=password,
-
             full_name=full_name,
-
             email=email,
         )
-
     except Exception as error:
-
         debug_print(
             "[DEBUG] Registration error:",
             repr(error),
@@ -5104,36 +4157,20 @@ def register_account():
         show_error(
             "The registration service is temporarily unavailable."
         )
-
         return False
 
     if (
-        not isinstance(
-            result,
-            dict,
-        )
-        or
-        result.get(
-            "success"
-        ) is not True
+        not isinstance(result, dict)
+        or result.get("success") is not True
     ):
-
         show_error(
-
             result.get(
                 "message",
                 "Registration failed.",
             )
-
-            if isinstance(
-                result,
-                dict,
-            )
-
-            else
-            "Registration failed."
+            if isinstance(result, dict)
+            else "Registration failed."
         )
-
         return False
 
     if not set_authenticated_user(
@@ -5142,19 +4179,16 @@ def register_account():
             {}
         )
     ):
-
         show_error(
             "The new account information could not be loaded."
         )
-
         return False
 
     show_success(
-
         (
             "Account created successfully.\n\n"
-            f'Welcome, '
-            f'{state.current_user_name or state.current_username or "User"}!'
+            f"Welcome, "
+            f"{state.current_user_name or state.current_username or 'User'}!"
         )
     )
 
@@ -5166,22 +4200,15 @@ def register_account():
 # ============================================================
 
 def logout_user():
-
     username = (
-
         state.current_username
-
-        or
-
-        "User"
+        or "User"
     )
 
     state.reset_all()
-
     reset_conversation()
 
     show_info(
-
         f'"{username}" has been logged out successfully.'
     )
 
@@ -5191,23 +4218,18 @@ def logout_user():
 # ============================================================
 
 def main():
-
     while True:
 
         # ====================================================
-        # AUTH SCREEN
+        # AUTHENTICATION SCREEN
         # ====================================================
 
         while not state.is_logged_in():
-
             show_header()
-
             show_auth_menu()
 
             choice = Prompt.ask(
-
                 "Select an option",
-
                 choices=[
                     "1",
                     "2",
@@ -5219,39 +4241,28 @@ def main():
             console.print()
 
             if choice == "1":
-
                 login_user()
 
             elif choice == "2":
-
                 register_account()
 
             elif choice == "3":
-
                 login_demo()
 
             elif choice == "4":
-
                 console.print()
 
                 console.print(
-
                     Panel(
-
                         Align.center(
-
                             Text(
-
                                 "Thank you for using "
                                 "AI Library Agent.\n\n"
                                 "Goodbye! 👋",
-
                                 style="bold",
                             )
                         ),
-
                         border_style="bright_blue",
-
                         padding=(1, 3),
                     )
                 )
@@ -5259,13 +4270,10 @@ def main():
                 return
 
             if not state.is_logged_in():
-
                 console.print()
 
                 Prompt.ask(
-
                     "[dim]Press Enter to continue[/dim]",
-
                     default="",
                 )
 
@@ -5274,17 +4282,12 @@ def main():
         # ====================================================
 
         while state.is_logged_in():
-
             show_header()
-
             show_main_menu()
 
             choice = Prompt.ask(
-
                 "Select an option",
-
                 choices=[
-
                     "1",
                     "2",
                     "3",
@@ -5296,72 +4299,55 @@ def main():
                     "9",
                     "10",
                     "11",
-
                 ],
             )
 
             console.print()
 
             if choice == "1":
-
                 menu_search_book()
 
             elif choice == "2":
-
                 menu_check_availability()
 
             elif choice == "3":
-
                 menu_borrow_book()
 
             elif choice == "4":
-
                 menu_return_book()
 
             elif choice == "5":
-
                 menu_borrow_history()
 
             elif choice == "6":
-
                 menu_available_books()
 
             elif choice == "7":
-
                 menu_fines()
 
             elif choice == "8":
-
                 menu_current_borrowed_books()
 
             elif choice == "9":
-
                 menu_overdue_books()
 
             elif choice == "10":
-
                 result = ai_chat_mode()
 
                 if result == "exit":
-
                     return
 
             elif choice == "11":
-
                 logout_user()
-
                 continue
 
             console.print()
 
             if state.is_logged_in():
-
                 Prompt.ask(
-
                     "[dim]"
                     "Press Enter to return to the main menu"
                     "[/dim]",
-
                     default="",
                 )
 
@@ -5371,21 +4357,16 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
-
     try:
-
         main()
 
     except KeyboardInterrupt:
-
         console.print(
             "\n\n[bold]Goodbye! 👋[/bold]"
         )
 
     except Exception as error:
-
         if DEBUG_MODE:
-
             console.print_exception()
 
             debug_print(
@@ -5394,9 +4375,6 @@ if __name__ == "__main__":
             )
 
         else:
-
             show_error(
-                get_user_error_message(
-                    error
-                )
+                get_user_error_message(error)
             )
