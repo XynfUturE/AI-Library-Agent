@@ -11,8 +11,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install Python dependencies (layer cached unless requirements change)
+# PIP_INDEX_URL can point to a PyPI mirror (e.g. a domestic mirror in China).
+ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" -r requirements.txt
 
 # Copy application source
 COPY . .
