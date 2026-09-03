@@ -432,7 +432,6 @@ def build_safe_user(row):
         return None
 
     return {
-
         "id":
             row["id"],
 
@@ -447,6 +446,9 @@ def build_safe_user(row):
 
         "status":
             row["status"],
+
+        "role":
+            row["role"],
 
         "created_at":
             row["created_at"]
@@ -655,7 +657,10 @@ def register_user(
                     email,
 
                 "status":
-                    "active"
+                    "active",
+
+                "role":
+                    "member"
 
             }
 
@@ -740,6 +745,7 @@ def authenticate_user(
                 full_name,
                 email,
                 status,
+                role,
                 created_at
 
             FROM users
@@ -862,6 +868,7 @@ def get_user_by_id(
                 full_name,
                 email,
                 status,
+                role,
                 created_at
 
             FROM users
@@ -919,6 +926,7 @@ def get_user_by_username(
                 full_name,
                 email,
                 status,
+                role,
                 created_at
 
             FROM users
@@ -966,448 +974,32 @@ def is_user_active(
 
 
 # ============================================================
-# CHANGE PASSWORD
+# GET USER ROLE
 # ============================================================
 
-def change_password(
-    user_id,
-    current_password,
-    new_password
+def get_user_role(
+    user_id
 ):
     """
-    Change a user's password after verifying the old password.
+    Return the role of an active user, or None.
     """
 
-    try:
-
-        user_id = int(
-            user_id
-        )
-
-    except (
-        TypeError,
-        ValueError
-    ):
-
-        return {
-
-            "success":
-                False,
-
-            "message":
-                "Invalid user account."
-
-        }
-
-    valid, message = validate_password(
-        new_password
+    user = get_user_by_id(
+        user_id
     )
 
-    if not valid:
+    if user is None:
 
-        return {
+        return None
 
-            "success":
-                False,
+    if user["status"] != "active":
 
-            "message":
-                message
+        return None
 
-        }
-
-    connection = get_connection()
-
-    try:
-
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT
-                id,
-                password_hash,
-                status
-
-            FROM users
-
-            WHERE id = ?
-
-            LIMIT 1
-            """,
-            (
-                user_id,
-            )
-        )
-
-        row = cursor.fetchone()
-
-        if row is None:
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    "User account not found."
-
-            }
-
-        if row["status"] != "active":
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    "User account is inactive."
-
-            }
-
-        if not verify_password(
-            current_password,
-            row["password_hash"]
-        ):
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    "Current password is incorrect."
-
-            }
-
-        # ----------------------------------------------------
-        # Prevent using exactly the same password.
-        # ----------------------------------------------------
-
-        if verify_password(
-            new_password,
-            row["password_hash"]
-        ):
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    "New password must be different "
-                    "from the current password."
-
-            }
-
-        new_password_hash = hash_password(
-            new_password
-        )
-
-        cursor.execute(
-            """
-            UPDATE users
-
-            SET password_hash = ?
-
-            WHERE id = ?
-
-            AND status = 'active'
-            """,
-            (
-                new_password_hash,
-                user_id
-            )
-        )
-
-        if cursor.rowcount != 1:
-
-            connection.rollback()
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    "Password could not be changed."
-
-            }
-
-        connection.commit()
-
-        return {
-
-            "success":
-                True,
-
-            "message":
-                "Password changed successfully."
-
-        }
-
-    except Exception:
-
-        connection.rollback()
-
-        return {
-
-            "success":
-                False,
-
-            "message":
-                "Password change failed."
-
-        }
-
-    finally:
-
-        connection.close()
-
-
-# ============================================================
-# UPDATE PROFILE
-# ============================================================
-
-def update_profile(
-    user_id,
-    full_name=None,
-    email=None
-):
-    """
-    Update basic account information.
-    """
-
-    try:
-
-        user_id = int(
-            user_id
-        )
-
-    except (
-        TypeError,
-        ValueError
-    ):
-
-        return {
-
-            "success":
-                False,
-
-            "message":
-                "Invalid user account."
-
-        }
-
-    # --------------------------------------------------------
-    # Validate supplied full name
-    # --------------------------------------------------------
-
-    if full_name is not None:
-
-        full_name = normalize_full_name(
-            full_name
-        )
-
-        valid, message = validate_full_name(
-            full_name
-        )
-
-        if not valid:
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    message
-
-            }
-
-    # --------------------------------------------------------
-    # Validate supplied email
-    # --------------------------------------------------------
-
-    if email is not None:
-
-        email = normalize_email(
-            email
-        )
-
-        valid, message = validate_email(
-            email
-        )
-
-        if not valid:
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    message
-
-            }
-
-    connection = get_connection()
-
-    try:
-
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT
-                id,
-                status
-
-            FROM users
-
-            WHERE id = ?
-
-            LIMIT 1
-            """,
-            (
-                user_id,
-            )
-        )
-
-        row = cursor.fetchone()
-
-        if row is None:
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    "User account not found."
-
-            }
-
-        if row["status"] != "active":
-
-            return {
-
-                "success":
-                    False,
-
-                "message":
-                    "User account is inactive."
-
-            }
-
-        # ----------------------------------------------------
-        # Email uniqueness
-        # ----------------------------------------------------
-
-        if email:
-
-            cursor.execute(
-                """
-                SELECT id
-
-                FROM users
-
-                WHERE LOWER(email) = LOWER(?)
-
-                AND id != ?
-
-                LIMIT 1
-                """,
-                (
-                    email,
-                    user_id
-                )
-            )
-
-            if cursor.fetchone() is not None:
-
-                return {
-
-                    "success":
-                        False,
-
-                    "message":
-                        "Email address is already in use."
-
-                }
-
-        # ----------------------------------------------------
-        # Update supplied values only
-        # ----------------------------------------------------
-
-        if full_name is not None:
-
-            cursor.execute(
-                """
-                UPDATE users
-
-                SET full_name = ?
-
-                WHERE id = ?
-                """,
-                (
-                    full_name,
-                    user_id
-                )
-            )
-
-        if email is not None:
-
-            cursor.execute(
-                """
-                UPDATE users
-
-                SET email = ?
-
-                WHERE id = ?
-                """,
-                (
-                    email,
-                    user_id
-                )
-            )
-
-        connection.commit()
-
-        updated_user = get_user_by_id(
-            user_id
-        )
-
-        return {
-
-            "success":
-                True,
-
-            "message":
-                "Profile updated successfully.",
-
-            "user":
-                updated_user
-
-        }
-
-    except Exception:
-
-        connection.rollback()
-
-        return {
-
-            "success":
-                False,
-
-            "message":
-                "Profile update failed."
-
-        }
-
-    finally:
-
-        connection.close()
+    return user.get(
+        "role",
+        "member"
+    )
 
 
 # ============================================================

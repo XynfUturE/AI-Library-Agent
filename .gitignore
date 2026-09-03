@@ -5,4 +5,4 @@ __pycache__/
 *.log
 .idea/
 .vscode/
-database/library_backup.db
+database/*.db

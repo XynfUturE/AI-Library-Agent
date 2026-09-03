@@ -450,10 +450,12 @@ def search_books(keyword):
             FROM books
 
             WHERE title LIKE ?
+                OR author LIKE ?
 
             ORDER BY id
             """,
             (
+                f"%{keyword}%",
                 f"%{keyword}%",
             )
         )
@@ -1325,10 +1327,15 @@ def return_book(
 # ============================================================
 
 def get_current_borrowed_books(
-    user_id
+    user_id,
+    overdue_only=False,
 ):
     """
     Return active loans for the authenticated user only.
+
+    When overdue_only is True, rows that cannot possibly be
+    overdue are filtered in SQL first so fine amounts are only
+    calculated for the relevant subset.
     """
 
     validation = validate_authenticated_user(
@@ -1348,6 +1355,14 @@ def get_current_borrowed_books(
         connection = get_connection()
 
         cursor = connection.cursor()
+
+        overdue_filter = ""
+
+        if overdue_only:
+
+            overdue_filter = """
+
+            AND borrow_records.due_date < date('now', 'localtime')"""
 
         cursor.execute(
             """
@@ -1369,7 +1384,11 @@ def get_current_borrowed_books(
             WHERE borrow_records.user_id = ?
 
             AND borrow_records.returned_at IS NULL
-
+            """
+            +
+            overdue_filter
+            +
+            """
             ORDER BY borrow_records.due_date ASC
             """,
             (
@@ -1460,7 +1479,8 @@ def get_overdue_books(
     """
 
     books = get_current_borrowed_books(
-        user_id
+        user_id,
+        overdue_only=True,
     )
 
     if isinstance(
@@ -1707,6 +1727,35 @@ def get_book_loan_details(
 
         )
 
+        # Reconstruct the actual historical overdue span
+        # instead of returning a hard-coded zero.
+        returned_datetime = parse_datetime(
+            row["returned_at"]
+        )
+
+        due_datetime = parse_datetime(
+            row["due_date"]
+        )
+
+        if (
+            returned_datetime is not None
+            and due_datetime is not None
+        ):
+
+            historical_late_days = (
+                returned_datetime.date()
+                - due_datetime.date()
+            ).days
+
+        else:
+
+            historical_late_days = 0
+
+        historical_late_days = max(
+            historical_late_days,
+            0
+        )
+
         return {
 
             "success":
@@ -1743,7 +1792,7 @@ def get_book_loan_details(
                 fine_amount > 0,
 
             "late_days":
-                0,
+                historical_late_days,
 
             "fine_amount":
                 fine_amount,

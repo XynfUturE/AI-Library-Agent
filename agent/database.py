@@ -176,6 +176,8 @@ def create_users_table(cursor):
 
             status TEXT NOT NULL DEFAULT 'active',
 
+            role TEXT NOT NULL DEFAULT 'member',
+
             created_at TIMESTAMP
                 DEFAULT CURRENT_TIMESTAMP
 
@@ -203,7 +205,52 @@ def create_books_table(cursor):
 
             author TEXT NOT NULL,
 
-            available INTEGER NOT NULL DEFAULT 1
+            available INTEGER NOT NULL DEFAULT 1,
+
+            category_id INTEGER NULL,
+
+            isbn TEXT NULL,
+
+            publisher TEXT NULL,
+
+            pub_date TEXT NULL,
+
+            language TEXT NULL,
+
+            location TEXT NULL,
+
+            description TEXT NULL,
+
+            cover_url TEXT NULL
+
+        )
+        """
+    )
+
+
+# ============================================================
+# CREATE CATEGORIES TABLE
+# ============================================================
+
+def create_categories_table(cursor):
+    """
+    Two-level category tree used for catalog classification.
+    """
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            parent_id INTEGER NULL
+                REFERENCES categories(id),
+
+            name TEXT NOT NULL,
+
+            sort_order INTEGER NOT NULL DEFAULT 0,
+
+            is_active INTEGER NOT NULL DEFAULT 1
 
         )
         """
@@ -315,6 +362,81 @@ def migrate_borrow_records(cursor):
 
 
 # ============================================================
+# MIGRATE CATALOG COLUMNS
+# ============================================================
+
+def migrate_catalog(cursor):
+    """
+    Add category & metadata columns introduced by the
+    multi-category catalog feature. Idempotent and safe
+    for existing library.db files.
+    """
+
+    ensure_column(
+        cursor,
+        "books",
+        "category_id",
+        "INTEGER NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "books",
+        "isbn",
+        "TEXT NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "books",
+        "publisher",
+        "TEXT NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "books",
+        "pub_date",
+        "TEXT NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "books",
+        "language",
+        "TEXT NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "books",
+        "location",
+        "TEXT NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "books",
+        "description",
+        "TEXT NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "books",
+        "cover_url",
+        "TEXT NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "users",
+        "role",
+        "TEXT NOT NULL DEFAULT 'member'"
+    )
+
+
+# ============================================================
 # CREATE INDEXES
 # ============================================================
 
@@ -352,6 +474,23 @@ def create_indexes(cursor):
         """
     )
 
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS
+        idx_books_category_id
+        ON books(category_id)
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        uq_books_isbn
+        ON books(isbn)
+        WHERE isbn IS NOT NULL
+        """
+    )
+
 
 # ============================================================
 # CREATE DEFAULT DEMO USER
@@ -378,6 +517,20 @@ def create_demo_user(cursor):
     existing_user = cursor.fetchone()
 
     if existing_user:
+
+        # The demo account acts as the local administrator for
+        # catalog management. Upgrade existing databases so the
+        # demo login keeps working without any flow changes.
+        cursor.execute(
+            """
+            UPDATE users
+            SET role = 'admin'
+            WHERE id = ?
+            AND role != 'admin'
+            """,
+            (existing_user["id"],)
+        )
+
         return existing_user["id"]
 
     # Temporary placeholder hash.
@@ -394,9 +547,10 @@ def create_demo_user(cursor):
             password_hash,
             full_name,
             email,
-            status
+            status,
+            role
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, 'admin')
         """,
         (
             "demo",
@@ -504,11 +658,19 @@ def initialize_database():
             cursor
         )
 
+        create_categories_table(
+            cursor
+        )
+
         # ----------------------------------------------------
-        # Migrate old borrow_records table
+        # Migrate old tables & add catalog columns
         # ----------------------------------------------------
 
         migrate_borrow_records(
+            cursor
+        )
+
+        migrate_catalog(
             cursor
         )
 
@@ -532,6 +694,10 @@ def initialize_database():
             cursor
         )
 
+        seed_categories(
+            cursor
+        )
+
         connection.commit()
 
     except Exception:
@@ -543,6 +709,115 @@ def initialize_database():
     finally:
 
         connection.close()
+
+
+def seed_categories(cursor):
+    """
+    Insert the default two-level category catalogue.
+    Idempotent: existing rows are never duplicated.
+    """
+
+    top_level = [
+        (1, "计算机与信息技术"),
+        (2, "文学小说"),
+        (3, "人文社科"),
+        (4, "经济管理"),
+        (5, "自然科学"),
+        (6, "工程技术"),
+        (7, "艺术设计"),
+        (8, "教育与考试"),
+        (9, "语言学习"),
+        (10, "少儿读物"),
+        (11, "期刊与工具书"),
+        (12, "未分类"),
+    ]
+
+    children = [
+        (1, "编程语言"),
+        (1, "算法与数据结构"),
+        (1, "人工智能"),
+        (1, "数据库"),
+        (1, "前端开发"),
+        (1, "网络安全"),
+        (1, "软件工程"),
+        (1, "操作系统与运维"),
+        (2, "中国文学"),
+        (2, "外国文学"),
+        (2, "科幻奇幻"),
+        (2, "悬疑推理"),
+        (2, "诗词散文"),
+        (3, "哲学心理"),
+        (3, "历史地理"),
+        (3, "政治法律"),
+        (3, "社会文化"),
+        (4, "经济学"),
+        (4, "市场营销"),
+        (4, "人力资源"),
+        (4, "财务会计"),
+        (4, "自我管理"),
+        (5, "数学物理"),
+        (5, "生物医学"),
+        (5, "天文地理"),
+        (6, "机械电子"),
+        (6, "建筑土木"),
+        (6, "能源环境"),
+        (7, "平面设计"),
+        (7, "绘画书法"),
+        (7, "影视音乐"),
+        (8, "考研公考"),
+        (8, "职业技能"),
+        (8, "教育理论"),
+        (9, "英语学习"),
+        (9, "多语种学习"),
+        (10, "绘本童话"),
+        (10, "少儿科普"),
+        (11, "期刊杂志"),
+        (11, "工具书"),
+    ]
+
+    rows = []
+
+    for category_id, name in top_level:
+
+        rows.append(
+            (
+                category_id,
+                None,
+                name,
+                category_id,
+                1
+            )
+        )
+
+    next_id = 101
+
+    for parent_id, name in children:
+
+        rows.append(
+            (
+                next_id,
+                parent_id,
+                name,
+                next_id,
+                1
+            )
+        )
+
+        next_id += 1
+
+    cursor.executemany(
+        """
+        INSERT OR IGNORE INTO categories (
+            id,
+            parent_id,
+            name,
+            sort_order,
+            is_active
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        rows
+    )
 
 
 # ============================================================

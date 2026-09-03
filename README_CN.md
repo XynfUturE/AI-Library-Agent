@@ -260,10 +260,10 @@ no
 | `get_borrow_history`         | 查看借阅历史      |
 | `list_available_books`       | 查看所有当前可借图书  |
 
-Tools 的定义位于：
+Tools 的定义（schema）与系统提示词位于（Web 引擎与 `main.py` CLI 共用同一份）：
 
 ```text
-main.py
+agent/core.py
 ```
 
 而实际业务逻辑主要位于：
@@ -810,6 +810,7 @@ AI-Agent-Learning/
 ├── agent/
 │   ├── __init__.py
 │   ├── auth.py
+│   ├── core.py
 │   ├── database.py
 │   ├── errors.py
 │   ├── state.py
@@ -817,6 +818,24 @@ AI-Agent-Learning/
 │
 ├── database/
 │   └── library.db
+│
+├── web/
+│   ├── app.py
+│   ├── models.py
+│   ├── session.py
+│   ├── templates/
+│   │   └── index.html
+│   └── static/
+│       ├── assets/
+│       ├── css/
+│       │   ├── tokens.css
+│       │   ├── base.css
+│       │   ├── components.css
+│       │   └── views/
+│       └── js/
+│           ├── app.js
+│           ├── lib/
+│           └── views/
 │
 └── tests/
     └── ...
@@ -889,6 +908,27 @@ os.getenv("DEEPSEEK_API_KEY")
 ---
 
 ## 23. Running the Application
+
+### 方式 A：Web 界面（推荐）
+
+启动 FastAPI 服务器：
+
+```powershell
+python -m uvicorn web.app:app --host 127.0.0.1 --port 8000
+```
+
+在浏览器打开 http://127.0.0.1:8000 。
+
+Web 界面提供：
+
+* 登录 / 注册 / Demo 演示登录
+* 聊天界面：SSE 流式回复、实时工具调用步骤卡（可展开查看参数）
+* "My Shelf" 仪表盘：借阅统计、在借列表（含到期徽章）、未付罚金、借阅历史、可搜索的图书目录
+* 可折叠侧边栏（含图书馆快捷操作）、浅色/深色主题（跟随系统 + 手动切换）、刷新后自动恢复登录态
+
+借书、还书、缴罚金等写操作统一通过聊天视图中的 AI Agent 完成，仪表盘保持只读。
+
+### 方式 B：终端 CLI
 
 启动：
 
@@ -1070,8 +1110,8 @@ git commit -m "Add recommendation workflow"
 
 ### Software Architecture
 
-* REST API
-* Web Frontend
+* Token-level Streaming（Web 界面中最终回答的逐字流式输出）
+* Server-side Session Persistence（当前会话保存在内存中）
 * Cloud Database
 * Automated Test Suite
 * Logging System

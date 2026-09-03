@@ -181,7 +181,7 @@ The system currently provides 12 tools to the AI agent:
 | `get_borrow_history`         | Retrieve the current user's borrowing history     |
 | `list_available_books`       | Retrieve currently available books                |
 
-The tools are defined in `main.py`, while the actual business logic is implemented in `agent/tools.py`.
+The tool schemas and system prompt are defined once in `agent/core.py` (imported by both the web engine and the `main.py` CLI), while the actual business logic is implemented in `agent/tools.py`.
 
 ---
 
@@ -457,6 +457,7 @@ AI-Agent-Learning/
 ├── agent/
 │   ├── __init__.py
 │   ├── auth.py
+│   ├── core.py
 │   ├── database.py
 │   ├── errors.py
 │   ├── state.py
@@ -464,6 +465,24 @@ AI-Agent-Learning/
 │
 ├── database/
 │   └── library.db
+│
+├── web/
+│   ├── app.py
+│   ├── models.py
+│   ├── session.py
+│   ├── templates/
+│   │   └── index.html
+│   └── static/
+│       ├── assets/
+│       ├── css/
+│       │   ├── tokens.css
+│       │   ├── base.css
+│       │   ├── components.css
+│       │   └── views/
+│       └── js/
+│           ├── app.js
+│           ├── lib/
+│           └── views/
 │
 └── tests/
     └── ...
@@ -529,6 +548,27 @@ A safe template is provided as:
 ---
 
 ## 18. Running the Application
+
+### Option A: Web UI (recommended)
+
+Start the FastAPI server:
+
+```powershell
+python -m uvicorn web.app:app --host 127.0.0.1 --port 8000
+```
+
+Open http://127.0.0.1:8000 in a browser.
+
+The web UI provides:
+
+* Login / Register / Continue as Demo authentication
+* A chat interface with streaming agent replies (SSE) and live tool-call step cards
+* A "My Shelf" dashboard: loan stats, active loans with due-date badges, unpaid fines, borrow history, and a searchable catalog
+* Collapsible sidebar with library shortcuts, light/dark theme (follows the system, manually toggleable), and session restore across page refreshes
+
+Mutations (borrow, return, pay fine) intentionally go through the AI agent in the chat view; the dashboard itself stays read-only.
+
+### Option B: Terminal CLI
 
 Start the application with:
 
@@ -668,7 +708,8 @@ Possible future development directions include:
 * Admin dashboard
 * Multi-agent workflows
 * MCP-based tool integration
-* Web or API frontend
+* Token-level streaming of the final LLM answer in the web UI
+* Server-side session and conversation persistence (sessions are currently in-memory)
 * Cloud database deployment
 * Automated test suites
 * Observability and agent tracing

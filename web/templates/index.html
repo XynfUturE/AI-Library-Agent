@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>AI Library Agent</title>
+
+    <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg?v={{ asset_version }}">
+
+    <script>
+        (function () {
+            var stored = localStorage.getItem("ai-library-theme");
+            var theme = (stored === "dark" || stored === "light")
+                ? stored
+                : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            document.documentElement.setAttribute("data-theme", theme);
+        })();
+    </script>
+
+    <link rel="stylesheet" href="/static/css/tokens.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/css/base.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/css/components.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/css/views/auth.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/css/views/shell.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/css/views/chat.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/css/views/shelf.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/css/views/catalog.css?v={{ asset_version }}">
+
+</head>
+
+
+<body>
+
+<!-- ================================================== -->
+<!-- SVG ICON SPRITE                                     -->
+<!-- ================================================== -->
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+
+    <symbol id="i-logo" viewBox="0 0 24 24">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+    </symbol>
+
+    <symbol id="i-chat" viewBox="0 0 24 24">
+        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+    </symbol>
+
+    <symbol id="i-shelf" viewBox="0 0 24 24">
+        <rect width="7" height="7" x="3" y="3" rx="1"/>
+        <rect width="7" height="7" x="14" y="3" rx="1"/>
+        <rect width="7" height="7" x="14" y="14" rx="1"/>
+        <rect width="7" height="7" x="3" y="14" rx="1"/>
+    </symbol>
+
+    <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.3-4.3"/>
+    </symbol>
+
+    <symbol id="i-book" viewBox="0 0 24 24">
+        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>
+    </symbol>
+
+    <symbol id="i-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+    </symbol>
+
+    <symbol id="i-alert" viewBox="0 0 24 24">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+        <path d="M12 9v4"/>
+        <path d="M12 17h.01"/>
+    </symbol>
+
+    <symbol id="i-coin" viewBox="0 0 24 24">
+        <rect width="20" height="14" x="2" y="5" rx="2"/>
+        <line x1="2" x2="22" y1="10" y2="10"/>
+    </symbol>
+
+    <symbol id="i-history" viewBox="0 0 24 24">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+    </symbol>
+
+    <symbol id="i-send" viewBox="0 0 24 24">
+        <path d="m22 2-7 20-4-9-9-4Z"/>
+        <path d="M22 2 11 13"/>
+    </symbol>
+
+    <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect width="14" height="14" x="8" y="8" rx="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+    </symbol>
+
+    <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="M20 6 9 17l-5-5"/>
+    </symbol>
+
+    <symbol id="i-x" viewBox="0 0 24 24">
+        <path d="M18 6 6 18"/>
+        <path d="m6 6 12 12"/>
+    </symbol>
+
+    <symbol id="i-chevron-right" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6"/>
+    </symbol>
+
+    <symbol id="i-chevrons-left" viewBox="0 0 24 24">
+        <path d="m11 17-5-5 5-5"/>
+        <path d="m18 17-5-5 5-5"/>
+    </symbol>
+
+    <symbol id="i-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2"/>
+        <path d="M12 20v2"/>
+        <path d="m4.93 4.93 1.41 1.41"/>
+        <path d="m17.66 17.66 1.41 1.41"/>
+        <path d="M2 12h2"/>
+        <path d="M20 12h2"/>
+        <path d="m6.34 17.66-1.41 1.41"/>
+        <path d="m19.07 4.93-1.41 1.41"/>
+    </symbol>
+
+    <symbol id="i-moon" viewBox="0 0 24 24">
+        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+    </symbol>
+
+    <symbol id="i-menu" viewBox="0 0 24 24">
+        <line x1="4" x2="20" y1="6" y2="6"/>
+        <line x1="4" x2="20" y1="12" y2="12"/>
+        <line x1="4" x2="20" y1="18" y2="18"/>
+    </symbol>
+
+    <symbol id="i-logout" viewBox="0 0 24 24">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" x2="9" y1="12" y2="12"/>
+    </symbol>
+
+    <symbol id="i-sparkles" viewBox="0 0 24 24">
+        <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
+        <path d="M19 3v4"/>
+        <path d="M17 5h4"/>
+    </symbol>
+
+    <symbol id="i-eye" viewBox="0 0 24 24">
+        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+        <circle cx="12" cy="12" r="3"/>
+    </symbol>
+
+    <symbol id="i-eye-off" viewBox="0 0 24 24">
+        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+        <line x1="2" x2="22" y1="2" y2="22"/>
+    </symbol>
+
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+        <path d="M21 3v5h-5"/>
+    </symbol>
+
+    <symbol id="i-loader" viewBox="0 0 24 24">
+        <path d="M21 12a9 9 0 1 1-6.22-8.56"/>
+    </symbol>
+
+    <symbol id="i-folder" viewBox="0 0 24 24">
+        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
+    </symbol>
+
+    <symbol id="i-chevron-down" viewBox="0 0 24 24">
+        <path d="m6 9 6 6 6-6"/>
+    </symbol>
+
+    <symbol id="i-layout-grid" viewBox="0 0 24 24">
+        <rect width="18" height="18" x="3" y="3" rx="2"/>
+        <path d="M3 9h18"/>
+        <path d="M3 15h18"/>
+        <path d="M9 3v18"/>
+        <path d="M15 3v18"/>
+    </symbol>
+
+    <symbol id="i-list" viewBox="0 0 24 24">
+        <path d="M8 6h13"/>
+        <path d="M8 12h13"/>
+        <path d="M8 18h13"/>
+        <path d="M3 6h.01"/>
+        <path d="M3 12h.01"/>
+        <path d="M3 18h.01"/>
+    </symbol>
+
+    <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M5 12h14"/>
+        <path d="M12 5v14"/>
+    </symbol>
+
+    <symbol id="i-upload" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" x2="12" y1="3" y2="15"/>
+    </symbol>
+
+    <symbol id="i-edit" viewBox="0 0 24 24">
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
+        <path d="m15 5 4 4"/>
+    </symbol>
+
+</svg>
+
+
+<!-- ================================================== -->
+<!-- AUTH SCREEN                                         -->
+<!-- ================================================== -->
+
+<main id="auth-screen" class="auth-screen">
+
+    <div class="auth-layout">
+
+        <!-- ========================================== -->
+        <!-- LEFT BRAND PANEL                           -->
+        <!-- ========================================== -->
+
+        <section class="brand-panel">
+
+            <div class="brand-panel-content">
+
+                <div class="brand-panel-logo">
+                    <svg class="icon icon-lg"><use href="#i-logo"></use></svg>
+                </div>
+
+                <div class="brand-panel-label">AI-POWERED LIBRARY</div>
+
+                <h2>Your library,<br>made intelligent.</h2>
+
+                <p class="brand-panel-description">
+                    Search books, manage your loans, check fines and
+                    interact with your library using natural language.
+                </p>
+
+                <div class="feature-list">
+
+                    <div class="feature-item">
+                        <span class="feature-icon"><svg class="icon icon-sm"><use href="#i-search"></use></svg></span>
+                        <span>Smart book search</span>
+                    </div>
+
+                    <div class="feature-item">
+                        <span class="feature-icon"><svg class="icon icon-sm"><use href="#i-book"></use></svg></span>
+                        <span>Easy borrowing and returns</span>
+                    </div>
+
+                    <div class="feature-item">
+                        <span class="feature-icon"><svg class="icon icon-sm"><use href="#i-sparkles"></use></svg></span>
+                        <span>AI-powered assistance</span>
+                    </div>
+
+                    <div class="feature-item">
+                        <span class="feature-icon"><svg class="icon icon-sm"><use href="#i-check"></use></svg></span>
+                        <span>Secure personal account</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="brand-panel-decoration decoration-one"></div>
+            <div class="brand-panel-decoration decoration-two"></div>
+            <div class="brand-panel-decoration decoration-three"></div>
+
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- RIGHT AUTH PANEL                           -->
+        <!-- ========================================== -->
+
+        <section class="auth-panel">
+
+            <!-- LOGIN CARD -->
+
+            <div id="login-card" class="auth-card">
+
+                <div class="auth-card-icon">
+                    <svg class="icon icon-lg"><use href="#i-sparkles"></use></svg>
+                </div>
+
+                <div class="auth-eyebrow">WELCOME BACK</div>
+
+                <h1>Sign in to your account</h1>
+
+                <p class="auth-subtitle">Continue to your AI Library Assistant.</p>
+
+                <form id="login-form" novalidate>
+
+                    <div class="form-group">
+                        <label for="login-username">Username</label>
+                        <input id="login-username" class="input" name="username" type="text"
+                               placeholder="Enter your username" autocomplete="username" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <div class="field-shell">
+                            <input id="login-password" class="input" name="password" type="password"
+                                   placeholder="Enter your password" autocomplete="current-password" required>
+                            <span class="field-trailing">
+                                <button type="button" id="login-password-toggle" class="icon-button"
+                                        data-target="login-password" aria-label="Show password">
+                                    <svg class="icon icon-sm"><use href="#i-eye"></use></svg>
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="primary-button" id="login-submit">Login</button>
+
+                </form>
+
+                <div id="login-message" class="message-area" role="alert"></div>
+
+                <div class="divider"><span>OR</span></div>
+
+                <button id="demo-login-button" class="secondary-button" type="button">
+                    Continue as Demo
+                </button>
+
+                <div class="auth-footer-link">
+                    <span>Don't have an account?</span>
+                    <button id="show-register-button" type="button">Create one</button>
+                </div>
+
+            </div>
+
+
+            <!-- REGISTER CARD -->
+
+            <div id="register-card" class="auth-card hidden">
+
+                <div class="auth-card-icon">
+                    <svg class="icon icon-lg"><use href="#i-book"></use></svg>
+                </div>
+
+                <div class="auth-eyebrow">CREATE ACCOUNT</div>
+
+                <h1>Join the library</h1>
+
+                <p class="auth-subtitle">Create an account to get started.</p>
+
+                <form id="register-form" novalidate>
+
+                    <div class="form-group">
+                        <label for="register-username">Username</label>
+                        <input id="register-username" class="input" type="text"
+                               placeholder="Choose a username" autocomplete="username" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="register-email">Email <span class="optional-hint">(optional)</span></label>
+                        <input id="register-email" class="input" type="email"
+                               placeholder="Enter your email (optional)" autocomplete="email">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="register-password">Password</label>
+                        <div class="field-shell">
+                            <input id="register-password" class="input" type="password"
+                                   placeholder="Create a password" autocomplete="new-password" required>
+                            <span class="field-trailing">
+                                <button type="button" id="register-password-toggle" class="icon-button"
+                                        data-target="register-password" aria-label="Show password">
+                                    <svg class="icon icon-sm"><use href="#i-eye"></use></svg>
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="register-confirm-password">Confirm password</label>
+                        <input id="register-confirm-password" class="input" type="password"
+                               placeholder="Confirm your password" autocomplete="new-password" required>
+                    </div>
+
+                    <button type="submit" class="primary-button" id="register-submit">Create Account</button>
+
+                </form>
+
+                <div id="register-message" class="message-area" role="alert"></div>
+
+                <div class="auth-footer-link">
+                    <span>Already have an account?</span>
+                    <button id="show-login-button" type="button">Back to Login</button>
+                </div>
+
+            </div>
+
+        </section>
+
+    </div>
+
+</main>
+
+
+<!-- ================================================== -->
+<!-- APP SHELL                                           -->
+<!-- ================================================== -->
+
+<div id="app-shell" class="app-shell hidden">
+
+
+    <!-- ========================================== -->
+    <!-- SIDEBAR                                    -->
+    <!-- ========================================== -->
+
+    <aside id="sidebar" class="sidebar" aria-label="Main navigation">
+
+        <div class="sidebar-header">
+
+            <div class="sidebar-brand">
+                <span class="sidebar-logo"><svg class="icon"><use href="#i-logo"></use></svg></span>
+                <span class="sidebar-title">
+                    <strong>AI Library Agent</strong>
+                    <span>Intelligent Assistant</span>
+                </span>
+            </div>
+
+            <button id="sidebar-collapse-button" class="icon-button sidebar-collapse-button"
+                    type="button" aria-label="Collapse sidebar">
+                <svg class="icon"><use href="#i-chevrons-left"></use></svg>
+            </button>
+
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <button class="nav-item" data-route="chat" type="button">
+                <svg class="icon"><use href="#i-chat"></use></svg>
+                <span class="nav-label">Chat</span>
+            </button>
+
+            <button class="nav-item" data-route="shelf" type="button">
+                <svg class="icon"><use href="#i-shelf"></use></svg>
+                <span class="nav-label">My Shelf</span>
+            </button>
+
+            <button class="nav-item" data-route="catalog" type="button">
+                <svg class="icon"><use href="#i-book"></use></svg>
+                <span class="nav-label">Catalog</span>
+            </button>
+
+        </nav>
+
+        <div class="sidebar-section">Library shortcuts</div>
+
+        <nav class="sidebar-shortcuts">
+
+            <button class="shortcut-item" type="button"
+                    data-shortcut="What books are available to borrow right now?">
+                <svg class="icon icon-sm"><use href="#i-search"></use></svg>
+                <span class="nav-label">Search books</span>
+            </button>
+
+            <button class="shortcut-item" type="button"
+                    data-shortcut="What books do I currently have on loan?">
+                <svg class="icon icon-sm"><use href="#i-clock"></use></svg>
+                <span class="nav-label">My loans</span>
+            </button>
+
+            <button class="shortcut-item" type="button"
+                    data-shortcut="Do I have any overdue books?">
+                <svg class="icon icon-sm"><use href="#i-alert"></use></svg>
+                <span class="nav-label">Overdue</span>
+            </button>
+
+            <button class="shortcut-item" type="button"
+                    data-shortcut="How much are my unpaid fines?">
+                <svg class="icon icon-sm"><use href="#i-coin"></use></svg>
+                <span class="nav-label">Unpaid fines</span>
+            </button>
+
+        </nav>
+
+        <div class="sidebar-footer">
+
+            <div class="user-chip">
+                <span id="user-initials" class="avatar avatar-sm">?</span>
+                <span class="user-chip-info">
+                    <span id="user-name" class="user-chip-name">Not logged in</span>
+                    <span id="user-role-label" class="user-chip-role">Library member</span>
+                </span>
+            </div>
+
+            <div class="sidebar-footer-actions">
+                <span class="sidebar-footer-label" id="theme-label">Light theme</span>
+                <button id="theme-toggle" class="icon-button" type="button"
+                        aria-label="Toggle color theme">
+                    <svg class="icon"><use id="theme-toggle-icon" href="#i-moon"></use></svg>
+                </button>
+                <button id="logout-button" class="icon-button" type="button" aria-label="Log out">
+                    <svg class="icon"><use href="#i-logout"></use></svg>
+                </button>
+            </div>
+
+        </div>
+
+    </aside>
+
+    <div id="sidebar-scrim" class="sidebar-scrim"></div>
+
+
+    <!-- ========================================== -->
+    <!-- MAIN COLUMN                                -->
+    <!-- ========================================== -->
+
+    <main class="app-main">
+
+        <header class="app-topbar">
+
+            <button id="sidebar-toggle" class="icon-button topbar-menu-button" type="button"
+                    aria-label="Open navigation">
+                <svg class="icon"><use href="#i-menu"></use></svg>
+            </button>
+
+            <div class="topbar-title" id="topbar-title">Chat</div>
+
+            <div class="topbar-right">
+                <button id="theme-toggle-top" class="icon-button" type="button"
+                        aria-label="Toggle color theme">
+                    <svg class="icon"><use id="theme-toggle-icon-top" href="#i-moon"></use></svg>
+                </button>
+            </div>
+
+        </header>
+
+
+        <!-- ====================================== -->
+        <!-- CHAT VIEW                              -->
+        <!-- ====================================== -->
+
+        <section id="view-chat" class="view view-chat">
+
+            <div id="chat-scroll" class="chat-scroll">
+
+                <div id="chat-welcome" class="chat-welcome">
+
+                    <div class="welcome-icon">
+                        <svg class="icon"><use href="#i-sparkles"></use></svg>
+                    </div>
+
+                    <h1 id="welcome-title">Hi, how can I help?</h1>
+
+                    <p>Ask me to search, borrow or return books, or check your loans and fines.</p>
+
+                    <div class="suggestion-grid">
+
+                        <button class="suggestion-card" type="button"
+                                data-prompt="What books are available to borrow right now?">
+                            <span class="suggestion-icon"><svg class="icon icon-sm"><use href="#i-book"></use></svg></span>
+                            <span class="suggestion-title">Browse available books</span>
+                            <span class="suggestion-sub">See what's on the shelf</span>
+                        </button>
+
+                        <button class="suggestion-card" type="button"
+                                data-prompt="What books do I currently have on loan and when are they due?">
+                            <span class="suggestion-icon"><svg class="icon icon-sm"><use href="#i-clock"></use></svg></span>
+                            <span class="suggestion-title">My loans</span>
+                            <span class="suggestion-sub">Due dates at a glance</span>
+                        </button>
+
+                        <button class="suggestion-card" type="button"
+                                data-prompt="Do I have any overdue books or unpaid fines?">
+                            <span class="suggestion-icon"><svg class="icon icon-sm"><use href="#i-alert"></use></svg></span>
+                            <span class="suggestion-title">Overdue &amp; fines</span>
+                            <span class="suggestion-sub">Check what needs attention</span>
+                        </button>
+
+                        <button class="suggestion-card" type="button"
+                                data-prompt="Show me my borrowing history.">
+                            <span class="suggestion-icon"><svg class="icon icon-sm"><use href="#i-history"></use></svg></span>
+                            <span class="suggestion-title">Borrowing history</span>
+                            <span class="suggestion-sub">Everything you've borrowed</span>
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <div id="messages" class="messages" role="log" aria-live="polite"></div>
+
+            </div>
+
+            <form id="chat-form" class="composer">
+
+                <div class="composer-shell">
+
+                    <textarea id="chat-input" rows="1"
+                              placeholder="Message your library assistant..."
+                              aria-label="Message your library assistant" required></textarea>
+
+                    <button id="send-button" class="send-button" type="submit" aria-label="Send message">
+                        <svg class="icon"><use href="#i-send"></use></svg>
+                    </button>
+
+                </div>
+
+                <div class="composer-hint">Press Enter to send · Shift + Enter for a new line</div>
+
+            </form>
+
+        </section>
+
+
+        <!-- ====================================== -->
+        <!-- MY SHELF VIEW                          -->
+        <!-- ====================================== -->
+
+        <section id="view-shelf" class="view view-shelf hidden">
+
+            <div class="shelf-page">
+
+                <div class="page-header">
+
+                    <div>
+                        <h1>My Shelf</h1>
+                        <p class="page-sub">Your library activity at a glance.</p>
+                    </div>
+
+                    <button id="shelf-refresh" class="button button-ghost button-small" type="button">
+                        <svg class="icon icon-sm"><use href="#i-refresh"></use></svg>
+                        Refresh
+                    </button>
+
+                </div>
+
+                <div id="shelf-stats" class="stat-grid"></div>
+
+                <div class="shelf-columns">
+
+                    <section class="card">
+
+                        <header class="card-head">
+                            <h2>Active loans</h2>
+                            <span id="loans-count" class="count-badge">0</span>
+                        </header>
+
+                        <div id="loans-list" class="loans-list"></div>
+
+                    </section>
+
+                    <section class="card">
+
+                        <header class="card-head">
+                            <h2>Unpaid fines</h2>
+                            <span id="fines-count" class="count-badge">0</span>
+                        </header>
+
+                        <div id="fines-list" class="fines-list"></div>
+
+                    </section>
+
+                </div>
+
+                <section class="card">
+
+                    <header class="card-head">
+                        <h2>Borrow history</h2>
+                        <span id="history-count" class="count-badge">0</span>
+                    </header>
+
+                    <div class="table-scroll">
+
+                        <table class="history-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Book</th>
+                                    <th>Borrowed</th>
+                                    <th>Returned</th>
+                                    <th>Fine</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="history-body"></tbody>
+
+                        </table>
+
+                    </div>
+
+                    <div id="history-empty" class="hidden"></div>
+
+                </section>
+
+            </div>
+
+        </section>
+
+
+        <!-- ====================================== -->
+        <!-- CATALOG VIEW                           -->
+        <!-- ====================================== -->
+
+        <section id="view-catalog" class="view view-catalog hidden">
+
+            <div class="catalog-page">
+
+                <header class="page-header catalog-page-header">
+
+                    <div>
+                        <h1>Catalog</h1>
+                        <p class="page-sub">Browse the library collection by category.</p>
+                    </div>
+
+                    <div class="catalog-header-actions">
+                        <button id="catalog-add-button" class="button button-primary button-small hidden"
+                                type="button">
+                            <svg class="icon icon-sm"><use href="#i-plus"></use></svg>
+                            Add book
+                        </button>
+                    </div>
+
+                </header>
+
+                <div class="catalog-layout">
+
+                    <aside class="catalog-sidebar" aria-label="Categories">
+
+                        <nav id="catalog-category-nav" class="category-nav"></nav>
+
+                    </aside>
+
+                    <div class="catalog-main">
+
+                        <div class="catalog-toolbar">
+
+                            <div class="catalog-search-shell">
+                                <svg class="icon icon-sm"><use href="#i-search"></use></svg>
+                                <input id="catalog-keyword" class="catalog-keyword" type="search"
+                                       placeholder="Search by title, author, ISBN or publisher..."
+                                       aria-label="Search the catalog">
+                                <button id="catalog-clear-search" class="icon-button search-clear hidden"
+                                        type="button" aria-label="Clear search">
+                                    <svg class="icon icon-sm"><use href="#i-x"></use></svg>
+                                </button>
+                            </div>
+
+                            <select id="catalog-availability" class="catalog-availability"
+                                    aria-label="Filter by availability">
+                                <option value="">All statuses</option>
+                                <option value="available">Available</option>
+                                <option value="loaned">On loan</option>
+                            </select>
+
+                            <div class="view-toggle" role="group" aria-label="View mode">
+                                <button id="catalog-view-grid" class="icon-button active" type="button"
+                                        aria-label="Grid view" title="Grid view">
+                                    <svg class="icon"><use href="#i-layout-grid"></use></svg>
+                                </button>
+                                <button id="catalog-view-list" class="icon-button" type="button"
+                                        aria-label="List view" title="List view">
+                                    <svg class="icon"><use href="#i-list"></use></svg>
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <div class="catalog-results-meta">
+
+                            <span id="catalog-filter-summary" class="catalog-filter-summary"></span>
+
+                            <span id="catalog-results-count" class="catalog-results-count"></span>
+
+                        </div>
+
+                        <div id="catalog-results" class="catalog-results catalog-grid"></div>
+
+                        <div id="catalog-loading" class="hidden">
+                            <span class="loading-spinner"></span>
+                            <span>Loading books…</span>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<!-- ================================================== -->
+<!-- TOASTS                                              -->
+<!-- ================================================== -->
+
+<div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+
+<script type="module" src="/static/js/app.js?v={{ asset_version }}"></script>
+
+</body>
+
+</html>
