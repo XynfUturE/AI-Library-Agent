@@ -24,15 +24,6 @@ DATABASE_PATH = os.path.join(
 
 
 # ============================================================
-# DATABASE SETTINGS
-# ============================================================
-
-DEFAULT_LOAN_DAYS = 14
-
-FINE_RATE_CENTS_PER_DAY = 50
-
-
-# ============================================================
 # GET CONNECTION
 # ============================================================
 
@@ -533,8 +524,8 @@ def create_demo_user(cursor):
 
         return existing_user["id"]
 
-    # Temporary placeholder hash.
-    # Real authentication will be implemented in Stage 3.
+    # The demo account is passwordless: the hash value is never
+    # used for verification, it only satisfies the NOT NULL column.
     demo_password_hash = (
         "DEMO_ACCOUNT_PLACEHOLDER"
     )
@@ -718,61 +709,61 @@ def seed_categories(cursor):
     """
 
     top_level = [
-        (1, "计算机与信息技术"),
-        (2, "文学小说"),
-        (3, "人文社科"),
-        (4, "经济管理"),
-        (5, "自然科学"),
-        (6, "工程技术"),
-        (7, "艺术设计"),
-        (8, "教育与考试"),
-        (9, "语言学习"),
-        (10, "少儿读物"),
-        (11, "期刊与工具书"),
-        (12, "未分类"),
+        (1, "Computers & IT"),
+        (2, "Literature & Fiction"),
+        (3, "Humanities & Social Sciences"),
+        (4, "Economics & Management"),
+        (5, "Natural Sciences"),
+        (6, "Engineering & Technology"),
+        (7, "Arts & Design"),
+        (8, "Education & Exams"),
+        (9, "Language Learning"),
+        (10, "Children's Books"),
+        (11, "Periodicals & Reference"),
+        (12, "Uncategorized"),
     ]
 
     children = [
-        (1, "编程语言"),
-        (1, "算法与数据结构"),
-        (1, "人工智能"),
-        (1, "数据库"),
-        (1, "前端开发"),
-        (1, "网络安全"),
-        (1, "软件工程"),
-        (1, "操作系统与运维"),
-        (2, "中国文学"),
-        (2, "外国文学"),
-        (2, "科幻奇幻"),
-        (2, "悬疑推理"),
-        (2, "诗词散文"),
-        (3, "哲学心理"),
-        (3, "历史地理"),
-        (3, "政治法律"),
-        (3, "社会文化"),
-        (4, "经济学"),
-        (4, "市场营销"),
-        (4, "人力资源"),
-        (4, "财务会计"),
-        (4, "自我管理"),
-        (5, "数学物理"),
-        (5, "生物医学"),
-        (5, "天文地理"),
-        (6, "机械电子"),
-        (6, "建筑土木"),
-        (6, "能源环境"),
-        (7, "平面设计"),
-        (7, "绘画书法"),
-        (7, "影视音乐"),
-        (8, "考研公考"),
-        (8, "职业技能"),
-        (8, "教育理论"),
-        (9, "英语学习"),
-        (9, "多语种学习"),
-        (10, "绘本童话"),
-        (10, "少儿科普"),
-        (11, "期刊杂志"),
-        (11, "工具书"),
+        (1, "Programming Languages"),
+        (1, "Algorithms & Data Structures"),
+        (1, "Artificial Intelligence"),
+        (1, "Databases"),
+        (1, "Frontend Development"),
+        (1, "Cybersecurity"),
+        (1, "Software Engineering"),
+        (1, "OS & Operations"),
+        (2, "Chinese Literature"),
+        (2, "Foreign Literature"),
+        (2, "Sci-Fi & Fantasy"),
+        (2, "Mystery & Thriller"),
+        (2, "Poetry & Essays"),
+        (3, "Philosophy & Psychology"),
+        (3, "History & Geography"),
+        (3, "Politics & Law"),
+        (3, "Society & Culture"),
+        (4, "Economics"),
+        (4, "Marketing"),
+        (4, "Human Resources"),
+        (4, "Finance & Accounting"),
+        (4, "Self-Improvement"),
+        (5, "Mathematics & Physics"),
+        (5, "Biology & Medicine"),
+        (5, "Astronomy & Earth Science"),
+        (6, "Mechanics & Electronics"),
+        (6, "Architecture & Civil Engineering"),
+        (6, "Energy & Environment"),
+        (7, "Graphic Design"),
+        (7, "Painting & Calligraphy"),
+        (7, "Film & Music"),
+        (8, "Postgraduate & Civil Service Exams"),
+        (8, "Vocational Skills"),
+        (8, "Educational Theory"),
+        (9, "English Learning"),
+        (9, "Multilingual Learning"),
+        (10, "Picture Books & Fairy Tales"),
+        (10, "Children's Science"),
+        (11, "Magazines"),
+        (11, "Reference Works"),
     ]
 
     rows = []
@@ -818,246 +809,6 @@ def seed_categories(cursor):
         """,
         rows
     )
-
-
-# ============================================================
-# RESET DEMO DATABASE DATA
-# ============================================================
-
-def reset_demo_database():
-    """
-    Reset development/demo borrowing data.
-
-    This does NOT delete users or book definitions.
-    """
-
-    connection = get_connection()
-
-    try:
-
-        cursor = connection.cursor()
-
-        # ----------------------------------------------------
-        # Remove borrowing records
-        # ----------------------------------------------------
-
-        cursor.execute(
-            """
-            DELETE FROM borrow_records
-            """
-        )
-
-        # ----------------------------------------------------
-        # Reset book availability
-        # ----------------------------------------------------
-
-        cursor.execute(
-            """
-            UPDATE books
-            SET available = 1
-            """
-        )
-
-        # Object-Oriented Design is unavailable by default.
-        cursor.execute(
-            """
-            UPDATE books
-            SET available = 0
-            WHERE id = 2
-            """
-        )
-
-        # ----------------------------------------------------
-        # Reset AUTOINCREMENT
-        # ----------------------------------------------------
-
-        cursor.execute(
-            """
-            DELETE FROM sqlite_sequence
-            WHERE name = 'borrow_records'
-            """
-        )
-
-        connection.commit()
-
-    except Exception:
-
-        connection.rollback()
-
-        raise
-
-    finally:
-
-        connection.close()
-
-
-# ============================================================
-# RESET EVERYTHING
-# ============================================================
-
-def reset_all_demo_data():
-    """
-    Completely reset demo users, borrowing records and
-    book availability.
-
-    This is intended for development/testing only.
-    """
-
-    connection = get_connection()
-
-    try:
-
-        cursor = connection.cursor()
-
-        # ----------------------------------------------------
-        # Delete borrow records first because they reference
-        # users.
-        # ----------------------------------------------------
-
-        cursor.execute(
-            """
-            DELETE FROM borrow_records
-            """
-        )
-
-        # ----------------------------------------------------
-        # Delete users
-        # ----------------------------------------------------
-
-        cursor.execute(
-            """
-            DELETE FROM users
-            """
-        )
-
-        # ----------------------------------------------------
-        # Reset books
-        # ----------------------------------------------------
-
-        cursor.execute(
-            """
-            UPDATE books
-            SET available = 1
-            """
-        )
-
-        cursor.execute(
-            """
-            UPDATE books
-            SET available = 0
-            WHERE id = 2
-            """
-        )
-
-        # ----------------------------------------------------
-        # Reset sequences
-        # ----------------------------------------------------
-
-        cursor.execute(
-            """
-            DELETE FROM sqlite_sequence
-            WHERE name IN (
-                'users',
-                'borrow_records'
-            )
-            """
-        )
-
-        # ----------------------------------------------------
-        # Recreate demo user
-        # ----------------------------------------------------
-
-        create_demo_user(
-            cursor
-        )
-
-        connection.commit()
-
-    except Exception:
-
-        connection.rollback()
-
-        raise
-
-    finally:
-
-        connection.close()
-
-
-# ============================================================
-# DATABASE PATH
-# ============================================================
-
-def get_database_path():
-    """
-    Return the absolute database path.
-    """
-
-    return DATABASE_PATH
-
-
-# ============================================================
-# DATABASE INFORMATION
-# ============================================================
-
-def get_database_info():
-    """
-    Return basic database information useful for debugging
-    and development.
-    """
-
-    connection = get_connection()
-
-    try:
-
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT COUNT(*) AS count
-            FROM users
-            """
-        )
-
-        user_count = cursor.fetchone()["count"]
-
-        cursor.execute(
-            """
-            SELECT COUNT(*) AS count
-            FROM books
-            """
-        )
-
-        book_count = cursor.fetchone()["count"]
-
-        cursor.execute(
-            """
-            SELECT COUNT(*) AS count
-            FROM borrow_records
-            """
-        )
-
-        borrow_record_count = (
-            cursor.fetchone()["count"]
-        )
-
-        return {
-            "database_path":
-                DATABASE_PATH,
-
-            "users":
-                user_count,
-
-            "books":
-                book_count,
-
-            "borrow_records":
-                borrow_record_count
-        }
-
-    finally:
-
-        connection.close()
 
 
 # ============================================================

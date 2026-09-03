@@ -793,8 +793,8 @@ function buildCsvPane() {
 
             <p class="csv-hint">
                 Upload a CSV file or paste its contents. The first row must be a header;
-                columns <code>title</code> and <code>author</code> are required. Chinese
-                headers such as <code>书名</code> / <code>作者</code> are also accepted.
+                columns <code>title</code> and <code>author</code> are required. Localized
+                header names are accepted as well.
                 The <code>category</code> column accepts a top-level name, a leaf name,
                 or <code>Parent / Child</code>.
             </p>
@@ -807,7 +807,7 @@ function buildCsvPane() {
 
             <textarea id="catalog-csv-text" class="input catalog-textarea catalog-csv-text"
                       rows="8" spellcheck="false"
-                      placeholder="title,author,category,isbn,publisher,available&#10;示例书名,示例作者,文学小说 / 科幻奇幻,,,1"></textarea>
+                      placeholder="title,author,category,isbn,publisher,available&#10;The Silent Garden,Elena Stone,Literature &amp; Fiction / Sci-Fi &amp; Fantasy,,,1"></textarea>
 
             <div id="catalog-csv-message" class="message-area" role="alert"></div>
 

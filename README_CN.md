@@ -666,7 +666,7 @@ DEBUG_MODE = False
 
 系统使用 SQLite 作为持久化数据库。
 
-主要包含三个核心表。
+主要包含以下核心表。
 
 ### `users`
 
@@ -677,7 +677,8 @@ DEBUG_MODE = False
 * Password Hash
 * Full Name
 * Email
-* Account Status
+* Account Status（`active`）
+* Role（`member` / `admin`）
 * Created Time
 
 ---
@@ -690,6 +691,24 @@ DEBUG_MODE = False
 * Title
 * Author
 * Availability
+* Category ID（分类引用）
+* ISBN
+* Publisher
+* Pub Date
+* Language
+* Location
+
+---
+
+### `categories`
+
+用于保存分类树（目录可多级嵌套）：
+
+* Category ID
+* Parent ID（自引用，一级分类为 `NULL`）
+* Name
+* Sort Order
+* Is Active
 
 ---
 
@@ -779,75 +798,66 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 
 ## 19. Technology Stack
 
-| 技术            | 用途             |
-| ------------- | -------------- |
-| Python        | 主程序与业务逻辑       |
-| SQLite        | 数据持久化          |
-| DeepSeek API  | LLM / AI Agent |
-| OpenAI SDK    | API 调用         |
-| Rich          | Terminal UI    |
-| python-dotenv | 环境变量管理         |
+| 技术            | 用途                                  |
+| ------------- | ------------------------------------- |
+| Python 3.10+  | 主程序与业务逻辑                          |
+| FastAPI       | Web API 框架                           |
+| uvicorn       | ASGI 服务器                            |
+| Jinja2        | HTML 模板引擎                           |
+| SQLite        | 数据持久化                              |
+| DeepSeek API  | LLM / AI Agent（OpenAI 兼容接口）        |
+| OpenAI SDK    | API 调用                              |
+| python-dotenv | 环境变量管理                            |
+| Rich          | Terminal UI（CLI）                     |
+| Vanilla JS    | 浏览器前端（无需构建步骤）                  |
+| CSS           | Token 化设计系统                        |
 
-当前 Agent 使用的模型配置位于 `main.py`：
-
-```python
-model="deepseek-v4-flash"
-```
+模型名称通过 `agent/core.py` 中的常量 `MODEL_NAME` 统一配置。
 
 ---
 
 ## 20. Project Structure
 
 ```text
-AI-Agent-Learning/
-│
-├── main.py
-├── README.md
+.
+├── main.py                 # 终端 CLI 入口（Rich）
 ├── requirements.txt
+├── Dockerfile
+├── .dockerignore
 ├── .env.example
 ├── .gitignore
+├── README.md
+├── README_CN.md
 │
-├── agent/
-│   ├── __init__.py
+├── agent/                  # 共享业务层
 │   ├── auth.py
-│   ├── core.py
-│   ├── database.py
+│   ├── catalog.py
+│   ├── core.py             # Agent 编排（LLM + 工具调用）
+│   ├── database.py         # SQLite 表结构 + 种子数据
 │   ├── errors.py
 │   ├── state.py
 │   └── tools.py
 │
-├── database/
-│   └── library.db
-│
-├── web/
-│   ├── app.py
-│   ├── models.py
-│   ├── session.py
-│   ├── templates/
-│   │   └── index.html
-│   └── static/
-│       ├── assets/
-│       ├── css/
-│       │   ├── tokens.css
-│       │   ├── base.css
-│       │   ├── components.css
-│       │   └── views/
-│       └── js/
-│           ├── app.js
-│           ├── lib/
-│           └── views/
-│
-└── tests/
-    └── ...
+└── web/                    # FastAPI 应用
+    ├── app.py
+    ├── models.py
+    ├── session.py          # 内存会话存储
+    ├── templates/
+    │   └── index.html
+    └── static/
+        ├── assets/
+        ├── css/
+        │   ├── tokens.css
+        │   ├── base.css
+        │   ├── components.css
+        │   └── views/
+        └── js/
+            ├── app.js
+            ├── lib/
+            └── views/
 ```
 
-其中：
-
-```text
-.env
-```
-
-保留在本地环境中，但不进入 Git。
+其中 `database/` 目录在运行时创建，用于存放本地 SQLite 数据文件；该目录已被 Git 忽略，不会提交到仓库。
 
 ---
 
@@ -1052,32 +1062,7 @@ python main.py
 
 ## 26. Git Version Control
 
-项目使用 Git 管理稳定版本。
-
-基本工作方式：
-
-```text
-Stable Version
-      ↓
-Development
-      ↓
-Testing
-      ↓
-git add
-      ↓
-git commit
-      ↓
-New Stable Version
-```
-
-例如：
-
-```powershell
-git add .
-git commit -m "Add recommendation workflow"
-```
-
-这样即使后续开发过程中出现问题，也可以回到之前已经验证过的稳定版本。
+项目使用 Git 管理版本，`main` 分支始终对应当前可用的稳定状态。提交以聚焦、可自描述的方式组织，具体演进可查看仓库提交历史。
 
 ---
 
@@ -1100,8 +1085,6 @@ git commit -m "Add recommendation workflow"
 
 ### Library System
 
-* Book Categories
-* Book Metadata
 * Reservation System
 * Waiting List
 * Borrowing Limits
@@ -1120,61 +1103,7 @@ git commit -m "Add recommendation workflow"
 
 ---
 
-## 28. Project Development Direction
-
-这个项目最重要的部分不是“Library”本身，而是它提供了一个实际的 Agent Application 场景。
-
-当前项目已经形成了：
-
-```text
-LLM
-+
-Tool Calling
-+
-Agent State
-+
-Business Logic
-+
-Database
-+
-Authentication
-+
-Data Isolation
-+
-Natural Language
-+
-Error Handling
-```
-
-因此，它可以继续作为以后学习和开发更复杂 AI Agent 系统的基础。
-
-下一阶段可以逐步从：
-
-```text
-Single Agent
-```
-
-发展到：
-
-```text
-Agent + RAG
-```
-
-再进一步发展到：
-
-```text
-Multi-Agent
-```
-
-以及：
-
-```text
-Agent + MCP + External Services
-```
-
----
-
-## 29. Current Project Goal
+## 28. Current Project Goal
 
 AI Library Agent 的核心目标是探索：
 

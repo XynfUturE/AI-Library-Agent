@@ -159,7 +159,7 @@ function renderCodeBlock(language, codeLines) {
                 <span class="code-block-lang">${label}</span>
                 <button type="button" class="code-copy-button">
                     <svg class="icon icon-sm" aria-hidden="true"><use href="#i-copy"></use></svg>
-                    Copy
+                    <span>Copy</span>
                 </button>
             </div>
             <pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>

@@ -952,57 +952,6 @@ def get_user_by_username(
 
 
 # ============================================================
-# CHECK ACTIVE USER
-# ============================================================
-
-def is_user_active(
-    user_id
-):
-    """
-    Return True when the account exists and is active.
-    """
-
-    user = get_user_by_id(
-        user_id
-    )
-
-    if user is None:
-
-        return False
-
-    return user["status"] == "active"
-
-
-# ============================================================
-# GET USER ROLE
-# ============================================================
-
-def get_user_role(
-    user_id
-):
-    """
-    Return the role of an active user, or None.
-    """
-
-    user = get_user_by_id(
-        user_id
-    )
-
-    if user is None:
-
-        return None
-
-    if user["status"] != "active":
-
-        return None
-
-    return user.get(
-        "role",
-        "member"
-    )
-
-
-# ============================================================
 # DEMO LOGIN
 # ============================================================
 

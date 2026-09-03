@@ -4,6 +4,14 @@ import secrets
 import time
 
 
+# ----------------------------------------------------------------
+# In-memory session store.
+#
+# Sessions live in this process only, so the app is designed to run
+# as a single uvicorn worker. Do NOT scale it horizontally without
+# swapping this module for a shared store (e.g. Redis).
+# ----------------------------------------------------------------
+
 # Idle sessions (no authenticated request) are evicted after this window.
 SESSION_IDLE_TIMEOUT = 60 * 60
 

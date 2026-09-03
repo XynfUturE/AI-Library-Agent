@@ -1,8 +1,23 @@
-.env
-.venv/
+# Python
 __pycache__/
 *.pyc
+
+# Virtual environment
+.venv/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
 *.log
+
+# Local SQLite database and backups
+database/*.db
+database/*.db-*
+database/backups/
+
+# Editors / IDEs
 .idea/
 .vscode/
-database/*.db

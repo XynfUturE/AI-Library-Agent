@@ -230,7 +230,7 @@ async function handleRegister(event) {
     const username = els.registerForm.username.value.trim();
     const email = els.registerForm.email.value.trim();
     const password = els.registerForm.password.value;
-    const confirm = els.registerForm.confirmPassword.value;
+    const confirmPassword = els.registerForm.confirmPassword.value;
 
     // Email is optional (the backend accepts an empty value);
     // only username and password are mandatory.
@@ -245,7 +245,7 @@ async function handleRegister(event) {
         return;
     }
 
-    if (password !== confirm) {
+    if (password !== confirmPassword) {
 
         showMessage(
             els.registerMessage,

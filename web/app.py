@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 
 from fastapi import (
     FastAPI,
@@ -31,8 +32,6 @@ from agent.auth import (
 )
 
 from agent.core import LibraryAgent
-
-from agent.database import get_connection
 
 
 from web.models import (
@@ -407,11 +406,30 @@ def login(
 # DEMO LOGIN
 # ============================================================
 
+# Password-less demo login is enabled by default so the app
+# works out of the box. Disable it in production by setting
+# ENABLE_DEMO_LOGIN=0 (see README).
+ENABLE_DEMO_LOGIN = (
+    os.getenv("ENABLE_DEMO_LOGIN", "1").lower()
+    not in {"0", "false", "no", "off"}
+)
+
+
 @app.post(
     "/api/demo-login",
     response_model=LoginResponse,
 )
 def demo_login():
+
+    if not ENABLE_DEMO_LOGIN:
+
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Demo login is disabled on this "
+                "server."
+            ),
+        )
 
     result = login_demo_user()
 
@@ -1005,73 +1023,6 @@ def shelf_history(
 # BOOK CATALOG (READ-ONLY)
 # ============================================================
 
-def fetch_book_catalog(
-    keyword=None,
-):
-
-    connection = None
-
-    try:
-
-        connection = get_connection()
-
-        cursor = connection.cursor()
-
-        if keyword:
-
-            cursor.execute(
-                """
-                SELECT
-                    id,
-                    title,
-                    author,
-                    available
-                FROM books
-                WHERE title LIKE ?
-                    OR author LIKE ?
-                ORDER BY title
-                """,
-                (
-                    f"%{keyword}%",
-                    f"%{keyword}%",
-                ),
-            )
-
-        else:
-
-            cursor.execute(
-                """
-                SELECT
-                    id,
-                    title,
-                    author,
-                    available
-                FROM books
-                ORDER BY title
-                """
-            )
-
-        rows = cursor.fetchall()
-
-        return [
-            {
-                "id": row["id"],
-                "title": row["title"],
-                "author": row["author"],
-                "available": bool(
-                    row["available"]
-                ),
-            }
-            for row in rows
-        ]
-
-    finally:
-
-        if connection is not None:
-
-            connection.close()
-
-
 @app.get(
     "/api/books",
     response_model=CatalogResponse,
@@ -1098,8 +1049,8 @@ def book_catalog(
         else None
     )
 
-    items = fetch_book_catalog(
-        keyword=keyword or None,
+    items = catalog_service.query_catalog(
+        keyword=keyword,
     )
 
     return CatalogResponse(

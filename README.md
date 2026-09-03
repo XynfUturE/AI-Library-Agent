@@ -370,7 +370,8 @@ Stores account information:
 * password hash
 * full name
 * email
-* account status
+* account status (`active`)
+* role (`member` / `admin`)
 * creation time
 
 ### `books`
@@ -381,6 +382,22 @@ Stores library catalogue information:
 * title
 * author
 * availability
+* category reference
+* ISBN
+* publisher
+* publication date
+* language
+* location
+
+### `categories`
+
+Stores the hierarchical category tree used by the catalog:
+
+* category ID
+* parent ID (self-reference, `NULL` for top-level categories)
+* name
+* sort order
+* active flag
 
 ### `borrow_records`
 
@@ -423,72 +440,64 @@ Some sensitive operations also use immediate transactions to reduce race-conditi
 
 ## 14. Technology Stack
 
-* Python 3
-* SQLite
-* DeepSeek API
-* OpenAI-compatible Python SDK
-* Rich
-* python-dotenv
-
-### Main Technologies
-
-| Technology    | Role                           |
-| ------------- | ------------------------------ |
-| Python        | Application and business logic |
-| SQLite        | Persistent database            |
-| DeepSeek      | LLM / AI agent                 |
-| OpenAI SDK    | API integration                |
-| Rich          | Terminal UI                    |
-| python-dotenv | Environment configuration      |
+| Technology    | Role                                 |
+| ------------- | ------------------------------------ |
+| Python 3.10+  | Application and business logic       |
+| FastAPI       | Web API framework                    |
+| uvicorn       | ASGI server                          |
+| Jinja2        | HTML templating                      |
+| SQLite        | Persistent database                  |
+| DeepSeek API  | LLM / AI agent (OpenAI-compatible)   |
+| OpenAI SDK    | API integration                      |
+| python-dotenv | Environment configuration            |
+| Rich          | Terminal UI (CLI)                    |
+| Vanilla JS    | Browser front-end (no build step)    |
+| CSS           | Token-based design system            |
 
 ---
 
 ## 15. Project Structure
 
 ```text
-AI-Agent-Learning/
-│
-├── main.py
-├── README.md
+.
+├── main.py                 # Terminal CLI entry point (Rich)
 ├── requirements.txt
+├── Dockerfile
+├── .dockerignore
 ├── .env.example
 ├── .gitignore
+├── README.md
+├── README_CN.md
 │
-├── agent/
-│   ├── __init__.py
+├── agent/                  # Shared business layer
 │   ├── auth.py
-│   ├── core.py
-│   ├── database.py
+│   ├── catalog.py
+│   ├── core.py             # Agent orchestration (LLM + tools)
+│   ├── database.py         # SQLite schema + seed data
 │   ├── errors.py
 │   ├── state.py
 │   └── tools.py
 │
-├── database/
-│   └── library.db
-│
-├── web/
-│   ├── app.py
-│   ├── models.py
-│   ├── session.py
-│   ├── templates/
-│   │   └── index.html
-│   └── static/
-│       ├── assets/
-│       ├── css/
-│       │   ├── tokens.css
-│       │   ├── base.css
-│       │   ├── components.css
-│       │   └── views/
-│       └── js/
-│           ├── app.js
-│           ├── lib/
-│           └── views/
-│
-└── tests/
-    └── ...
+└── web/                    # FastAPI application
+    ├── app.py
+    ├── models.py
+    ├── session.py          # In-memory session store
+    ├── templates/
+    │   └── index.html
+    └── static/
+        ├── assets/
+        ├── css/
+        │   ├── tokens.css
+        │   ├── base.css
+        │   ├── components.css
+        │   └── views/
+        └── js/
+            ├── app.js
+            ├── lib/
+            └── views/
 ```
 
-Development and backup database files should remain separate from the main demo database where appropriate.
+The `database/` directory is created at runtime and holds the local SQLite files. It is git-ignored and never committed.
 
 ---
 
@@ -529,6 +538,7 @@ Create a local `.env` file:
 
 ```env
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+ENABLE_DEMO_LOGIN=1
 ```
 
 The project reads the key through:
@@ -536,6 +546,8 @@ The project reads the key through:
 ```python
 os.getenv("DEEPSEEK_API_KEY")
 ```
+
+`ENABLE_DEMO_LOGIN` toggles the password-less demo login. It defaults to enabled so the app works out of the box; set it to `0` to disable the endpoint in production.
 
 Do not commit `.env` to Git.
 
@@ -589,6 +601,15 @@ Available options include:
 
 After authentication, the main library menu becomes available.
 
+### Option C: Docker (containerized)
+
+```powershell
+docker build -t ai-library-agent .
+docker run -p 8000:8000 -e DEEPSEEK_API_KEY=your_deepseek_api_key_here ai-library-agent
+```
+
+The image runs as a non-root user and exposes a built-in health check. Any container platform (Docker, Zeabur, Render, etc.) that injects a `PORT` environment variable is supported via the entry-point's `${PORT:-8000}` fallback.
+
 ---
 
 ## 19. Demo Account
@@ -609,7 +630,7 @@ The demo environment contains a small amount of realistic borrowing data so that
 
 ## 20. Testing
 
-The project has been tested across the following areas:
+The project has been exercised manually across the following areas. An automated test suite is planned (see "Future Improvements").
 
 ### Functional Testing
 
@@ -675,23 +696,7 @@ The project follows several basic security practices:
 
 ## 22. Version Control
 
-Git is used to maintain stable project versions.
-
-The development workflow is:
-
-```text
-Stable Version
-      ↓
-Development Changes
-      ↓
-Testing
-      ↓
-Commit
-      ↓
-Next Stable Version
-```
-
-The project keeps local backup files outside normal version control where appropriate.
+The project is tracked with Git. The `main` branch holds the current stable state, and changes are committed as focused, self-describing commits (see the repository history).
 
 ---
 
@@ -703,7 +708,6 @@ Possible future development directions include:
 * RAG-based book recommendations
 * Persistent long-term AI memory
 * More advanced recommendation ranking
-* Book categories and metadata
 * Reservation and waiting-list systems
 * Admin dashboard
 * Multi-agent workflows
@@ -743,3 +747,13 @@ Natural Language Interaction
 ```
 
 into a single working application.
+
+---
+
+## 25. License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+*A Chinese version of this document is available in [README_CN.md](README_CN.md).*

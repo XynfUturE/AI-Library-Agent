@@ -12,8 +12,8 @@ from agent.tools import (
 # CATALOG POLICIES
 # ============================================================
 
-# "未分类" is the reserved bucket used when no category is chosen.
-UNCATEGORIZED_NAME = "未分类"
+# "Uncategorized" is the reserved bucket used when no category is chosen.
+UNCATEGORIZED_NAME = "Uncategorized"
 
 # Query parameter sentinel meaning "books without a category".
 UNCATEGORIZED_QUERY_ID = -1
@@ -77,7 +77,7 @@ def _category_maps(cursor):
 
 def _reserved_category_id(by_id):
     """
-    Return the top-level category reserved for "未分类", or None.
+    Return the top-level category reserved for "Uncategorized", or None.
     """
 
     reserved = [
@@ -137,7 +137,7 @@ def _uncategorized_ids(
     children_map,
 ):
     """
-    Return all category ids treated as "未分类".
+    Return all category ids treated as "Uncategorized".
     """
 
     reserved_id = _reserved_category_id(
@@ -182,7 +182,7 @@ def _category_label(
 ):
     """
     Build a readable path label such as
-    "计算机与信息技术 / 编程语言".
+    "Computers & IT / Programming Languages".
     """
 
     if not category_id:
@@ -443,7 +443,7 @@ def get_catalog_categories():
     """
     Return the two-level category tree with book counts.
 
-    The seeded "未分类" bucket is folded into a single
+    The seeded "Uncategorized" bucket is folded into a single
     uncategorized counter instead of a sidebar entry.
     """
 
@@ -1352,38 +1352,21 @@ def update_book(
 # Normalised header -> internal column key
 CSV_HEADER_MAP = {
     "title": "title",
-    "书名": "title",
     "book_title": "title",
     "author": "author",
-    "作者": "author",
     "category": "category_text",
-    "分类": "category_text",
     "category_name": "category_text",
-    "分类名": "category_text",
     "category_id": "category_id",
-    "分类id": "category_id",
-    "分类编号": "category_id",
     "isbn": "isbn",
     "isbn13": "isbn",
     "publisher": "publisher",
-    "出版社": "publisher",
     "pub_date": "pub_date",
-    "出版日期": "pub_date",
     "pubdate": "pub_date",
     "language": "language",
-    "语言": "language",
     "location": "location",
-    "馆藏位置": "location",
-    "位置": "location",
     "cover_url": "cover_url",
-    "封面": "cover_url",
-    "封面链接": "cover_url",
     "description": "description",
-    "简介": "description",
-    "描述": "description",
     "available": "available",
-    "可借": "available",
-    "状态": "available",
 }
 
 AVAILABLE_TRUE = {
@@ -1392,9 +1375,6 @@ AVAILABLE_TRUE = {
     "yes",
     "y",
     "available",
-    "在馆",
-    "可借",
-    "是",
 }
 
 AVAILABLE_FALSE = {
@@ -1403,10 +1383,6 @@ AVAILABLE_FALSE = {
     "no",
     "n",
     "unavailable",
-    "在借",
-    "不可借",
-    "借出",
-    "否",
 }
 
 
@@ -1523,7 +1499,7 @@ def import_books_csv(
         language,location,cover_url,description,available
 
     category accepts "Parent / Child" or a leaf/top name or id.
-    available accepts 1/0, yes/no, true/false, 可借/不可借.
+    available accepts 1/0, yes/no, true/false, available/unavailable.
 
     Rows that fail validation are skipped and reported per line.
     """

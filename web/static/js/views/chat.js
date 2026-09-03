@@ -160,7 +160,7 @@ function buildAssistantRow() {
                 <span class="message-time">${timeNow()}</span>
                 <button type="button" class="message-copy-button">
                     <svg class="icon icon-sm" aria-hidden="true"><use href="#i-copy"></use></svg>
-                    Copy
+                    <span>Copy</span>
                 </button>
             </div>
         </div>
@@ -645,6 +645,10 @@ async function copyText(text, button) {
 
                 label.textContent = original;
             }, 1500);
+
+        } else {
+
+            toast("Copied", "success");
         }
 
     } catch {
