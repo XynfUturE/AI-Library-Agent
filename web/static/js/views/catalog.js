@@ -133,6 +133,33 @@ function coverStyle(title) {
 }
 
 
+/**
+ * Render the cover area for a book card/row. A real cover image is used
+ * when available; otherwise a deterministic gradient placeholder is shown.
+ */
+function coverElement(book, className) {
+
+    const gradient = coverStyle(book.title);
+
+    if (book.cover_url) {
+
+        return `
+            <div class="${className} has-cover" style="${gradient}">
+                <img class="${className}-img" src="${escapeHtml(book.cover_url)}"
+                     alt="${escapeHtml(book.title)} cover" loading="lazy"
+                     onerror="this.remove()">
+            </div>
+        `;
+    }
+
+    return `
+        <div class="${className}" style="${gradient}">
+            ${icon("book", "icon")}
+        </div>
+    `;
+}
+
+
 function availabilityBadge(book) {
 
     return book.available
@@ -194,13 +221,13 @@ function bookCard(book) {
 
     return `
         <article class="book-card" data-book-id="${book.id}">
-            <div class="book-cover" style="${coverStyle(book.title)}">
-                ${icon("book", "icon")}
-            </div>
+            ${coverElement(book, "book-cover")}
             <div class="book-card-body">
                 <div class="book-title" title="${escapeHtml(book.title)}">${escapeHtml(book.title)}</div>
                 <div class="book-author">${escapeHtml(book.author)}</div>
-                <div class="book-category">${book.category_label ? escapeHtml(book.category_label) : "Uncategorized"}</div>
+                ${book.category_label
+                    ? `<div class="book-category">${escapeHtml(book.category_label)}</div>`
+                    : ""}
                 <div class="book-card-footer">
                     ${availabilityBadge(book)}
                     <span class="book-actions">
@@ -237,9 +264,7 @@ function bookRow(book) {
 
     return `
         <article class="book-row" data-book-id="${book.id}">
-            <div class="book-thumb" style="${coverStyle(book.title)}">
-                ${icon("book", "icon")}
-            </div>
+            ${coverElement(book, "book-thumb")}
             <div class="book-row-info">
                 <div class="book-row-title">${escapeHtml(book.title)}</div>
                 <div class="book-row-author">${escapeHtml(book.author)}</div>
@@ -350,7 +375,7 @@ function filterSummaryText() {
         parts.push("On loan");
     }
 
-    return parts.length ? parts.join(" · ") : "All books";
+    return parts.length ? parts.join(" · ") : "All Books";
 }
 
 
@@ -359,11 +384,6 @@ function categoryNameFor(categoryId) {
     if (categoryId === null) {
 
         return null;
-    }
-
-    if (categoryId === -1) {
-
-        return "Uncategorized";
     }
 
     return (categoryLookup && categoryLookup[categoryId])
@@ -496,8 +516,6 @@ function renderCategories() {
 
     const total = categoryData ? categoryData.total : 0;
 
-    const uncategorized = categoryData ? categoryData.uncategorized : 0;
-
     const active = filters.categoryId;
 
     const chip = count => `<span class="cat-count">${Number(count)}</span>`;
@@ -510,21 +528,12 @@ function renderCategories() {
 
     const parts = [];
 
-    // ---- All books --------------------------------------
+    // ---- All Books --------------------------------------
     parts.push(`
         <button type="button" class="${selectCls(null)}" data-id="all">
             ${icon("book", "icon icon-sm")}
-            <span class="cat-name">All books</span>
+            <span class="cat-name">All Books</span>
             ${chip(total)}
-        </button>
-    `);
-
-    // ---- Uncategorized bucket -----------------------------
-    parts.push(`
-        <button type="button" class="${selectCls(-1)}" data-id="-1">
-            ${icon("book", "icon icon-sm")}
-            <span class="cat-name">Uncategorized</span>
-            ${chip(uncategorized)}
         </button>
     `);
 
@@ -691,7 +700,7 @@ function askAgent(prompt) {
 function categoryOptions(selectedId) {
 
     const options = [
-        `<option value="">— Uncategorized —</option>`,
+        `<option value="">Select a category…</option>`,
     ];
 
     for (const group of sidebarNodes) {

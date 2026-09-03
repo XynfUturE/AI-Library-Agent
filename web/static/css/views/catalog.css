@@ -470,6 +470,28 @@
 }
 
 
+/* A book with a real cover replaces the placeholder art with its image. */
+
+.book-cover.has-cover,
+.book-thumb.has-cover {
+
+    padding: 0;
+    overflow: hidden;
+    align-items: center;
+    justify-content: center;
+}
+
+
+.book-cover .book-cover-img,
+.book-thumb .book-thumb-img {
+
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+
 .book-card-body {
 
     padding: 12px 14px 14px;

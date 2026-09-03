@@ -9,17 +9,6 @@ from agent.tools import (
 
 
 # ============================================================
-# CATALOG POLICIES
-# ============================================================
-
-# "Uncategorized" is the reserved bucket used when no category is chosen.
-UNCATEGORIZED_NAME = "Uncategorized"
-
-# Query parameter sentinel meaning "books without a category".
-UNCATEGORIZED_QUERY_ID = -1
-
-
-# ============================================================
 # INTERNAL HELPERS
 # ============================================================
 
@@ -75,21 +64,6 @@ def _category_maps(cursor):
     return by_id, children_map
 
 
-def _reserved_category_id(by_id):
-    """
-    Return the top-level category reserved for "Uncategorized", or None.
-    """
-
-    reserved = [
-        category["id"]
-        for category in by_id.values()
-        if category["parent_id"] is None
-        and category["name"] == UNCATEGORIZED_NAME
-    ]
-
-    return min(reserved) if reserved else None
-
-
 def _subtree_ids(
     root_id,
     by_id,
@@ -130,29 +104,6 @@ def _subtree_ids(
         )
 
     return result
-
-
-def _uncategorized_ids(
-    by_id,
-    children_map,
-):
-    """
-    Return all category ids treated as "Uncategorized".
-    """
-
-    reserved_id = _reserved_category_id(
-        by_id
-    )
-
-    if reserved_id is None:
-
-        return set()
-
-    return _subtree_ids(
-        reserved_id,
-        by_id,
-        children_map,
-    )
 
 
 def _clean_text(value):
@@ -442,9 +393,6 @@ def validation_error(message):
 def get_catalog_categories():
     """
     Return the two-level category tree with book counts.
-
-    The seeded "Uncategorized" bucket is folded into a single
-    uncategorized counter instead of a sidebar entry.
     """
 
     connection = None
@@ -495,11 +443,6 @@ def get_catalog_categories():
             cursor
         )
 
-        uncategorized_ids = _uncategorized_ids(
-            by_id,
-            children_map,
-        )
-
         # ------------------------------------------------
         # Subtree counts (children add up into parents)
         # ------------------------------------------------
@@ -518,25 +461,8 @@ def get_catalog_categories():
                 )
             )
 
-        null_count = direct_counts.get(
-            None,
-            0,
-        )
-
-        uncategorized = (
-            null_count
-            +
-            sum(
-                direct_counts.get(
-                    category_id,
-                    0,
-                )
-                for category_id in uncategorized_ids
-            )
-        )
-
         # ------------------------------------------------
-        # Build the visible tree (without the reserved bucket)
+        # Build the visible tree
         # ------------------------------------------------
 
         categories = []
@@ -546,10 +472,6 @@ def get_catalog_categories():
             category_id = row["id"]
 
             if row["parent_id"] is not None:
-
-                continue
-
-            if category_id in uncategorized_ids:
 
                 continue
 
@@ -598,9 +520,6 @@ def get_catalog_categories():
             "total":
                 total,
 
-            "uncategorized":
-                uncategorized,
-
             "categories":
                 categories,
         }
@@ -633,7 +552,7 @@ def query_catalog(
     Query books with optional keyword, category subtree and
     availability filters.
 
-    category_id = -1 selects the uncategorized bucket.
+    category_id selects the category subtree when given.
     """
 
     connection = None
@@ -703,40 +622,7 @@ def query_catalog(
 
                 category_id = None
 
-        if category_id == UNCATEGORIZED_QUERY_ID:
-
-            matching_ids = _uncategorized_ids(
-                by_id,
-                children_map,
-            )
-
-            uncategorized_filter = (
-                "category_id IS NULL"
-            )
-
-            if matching_ids:
-
-                uncategorized_filter += (
-                    " OR category_id IN ("
-                    +
-                    ",".join(
-                        "?" * len(matching_ids)
-                    )
-                    +
-                    ")"
-                )
-
-                parameters.extend(
-                    sorted(
-                        matching_ids
-                    )
-                )
-
-            conditions.append(
-                f"({uncategorized_filter})"
-            )
-
-        elif category_id is not None and category_id > 0:
+        if category_id is not None:
 
             if category_id in by_id:
 
@@ -929,7 +815,8 @@ def create_book(
     fields,
 ):
     """
-    Create one catalog book. category_id None means uncategorized.
+    Create one catalog book. category_id None leaves the book
+    without a category.
     """
 
     cleaned, error = validate_book_fields(

@@ -91,7 +91,6 @@ class CategoryNode(BaseModel):
 class CatalogCategoriesResponse(BaseModel):
     success: bool
     total: int
-    uncategorized: int = 0
     categories: list[CategoryNode]
 
 
