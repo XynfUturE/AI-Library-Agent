@@ -86,26 +86,33 @@ The project follows a tool-calling agent architecture:
 
 ```text
 User Request
-     │
-     ▼
+
+     ↓
+
 DeepSeek LLM
-     │
-     ▼
+     
+     ↓
+
 Tool Selection
-     │
-     ▼
+     
+     ↓
+
 Python Tool
-     │
-     ▼
+     
+     ↓
+
 SQLite Database
-     │
-     ▼
+     
+     ↓
+
 Tool Result
-     │
-     ▼
+     
+     ↓
+
 Agent State
-     │
-     ▼
+     
+     ↓
+
 Final Response
 ```
 
@@ -195,17 +202,21 @@ For example:
 
 ```text
 Authenticated User
-        │
-        ▼
+        
+        ↓
+
 AgentState.current_user_id
-        │
-        ▼
+        
+        ↓
+
 execute_tool()
-        │
-        ▼
+        
+        ↓
+
 User-specific Python tool
-        │
-        ▼
+        
+        ↓
+
 SQLite query with user_id filtering
 ```
 
