@@ -1,0 +1,34 @@
+# ============================================================
+# AI Library Agent - Docker Compose (self-hosted)
+#
+# 用法（在项目根目录）：
+#   1) 创建 .env 文件并填入 DEEPSEEK_API_KEY
+#   2) docker compose up -d --build
+#   3) 浏览器访问 http://服务器IP:8000
+#
+# 数据持久化在宿主机 ./data 目录，重启 / 升级镜像不会丢失。
+# ============================================================
+
+services:
+  library-agent:
+    build: .
+    image: ai-library-agent:latest
+    container_name: ai-library-agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # 将容器内的 SQLite 数据库目录挂载到宿主机，保证数据不丢失
+      - ./data:/app/database
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
