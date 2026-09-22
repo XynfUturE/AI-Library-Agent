@@ -35,6 +35,17 @@ MODEL_NAME = "deepseek-v4-flash"
 
 MAX_STEPS = 8
 
+# Only the most recent user turns are resent to the model, so the
+# input size of a long conversation stays bounded.
+MAX_CONVERSATION_USER_TURNS = 10
+
+# Reasoning mode used for each LLM call of a turn:
+#   "enabled"  - always reason
+#   "disabled" - never reason
+#   "auto"     - skip reasoning for the first call of a turn and
+#                enable it as soon as the turn needs more steps
+THINKING_MODE = "auto"
+
 MAX_ARG_PREVIEW_LENGTH = 60
 
 # Friendly progress labels shown while a tool is running.
@@ -752,6 +763,81 @@ class LibraryAgent:
         ]
 
     # ========================================================
+    # TRIM CONVERSATION HISTORY
+    # ========================================================
+
+    def trim_messages(self):
+        """
+        Keep only the most recent user turns.
+
+        Without this, every LLM call would resend the whole
+        conversation, including old tool results, so the input
+        size of a long session would grow without bound.
+
+        The cut is always made on a user message, so the kept
+        window never starts with a tool result whose assistant
+        message was dropped.
+        """
+
+        user_indexes = [
+            index
+            for index, message in enumerate(
+                self.messages
+            )
+            if message.get("role") == "user"
+        ]
+
+        if len(user_indexes) <= MAX_CONVERSATION_USER_TURNS:
+
+            return
+
+        first_kept_index = user_indexes[
+            -MAX_CONVERSATION_USER_TURNS
+        ]
+
+        self.messages = (
+            [self.messages[0]]
+            + self.messages[first_kept_index:]
+        )
+
+    # ========================================================
+    # REASONING MODE
+    # ========================================================
+
+    def thinking_payload(self, step):
+        """
+        Build the reasoning parameter for one LLM call of a turn.
+
+        In "auto" mode the first call of a turn runs without
+        reasoning: it only has to pick a tool out of a fixed
+        tool set. Reasoning is enabled from the second call
+        onwards, which means the turn turned out to be
+        multi-step.
+        """
+
+        if THINKING_MODE == "enabled":
+
+            enabled = True
+
+        elif THINKING_MODE == "disabled":
+
+            enabled = False
+
+        else:
+
+            enabled = step > 0
+
+        return {
+            "thinking": {
+                "type": (
+                    "enabled"
+                    if enabled
+                    else "disabled"
+                )
+            }
+        }
+
+    # ========================================================
     # EXECUTE TOOL
     # ========================================================
 
@@ -985,6 +1071,10 @@ class LibraryAgent:
         /api/chat.
         """
 
+        # Drop the oldest turns before a new one starts, so the
+        # rollback below and the token cost stay bounded.
+        self.trim_messages()
+
         base_len = len(
             self.messages
         )
@@ -1045,7 +1135,7 @@ class LibraryAgent:
         # Agent loop
         # ----------------------------------------------------
 
-        for _ in range(
+        for step in range(
             MAX_STEPS
         ):
 
@@ -1058,11 +1148,9 @@ class LibraryAgent:
                     messages=self.messages,
                     tools=TOOL_DEFINITIONS,
                     tool_choice="auto",
-                    extra_body={
-                        "thinking": {
-                            "type": "enabled"
-                        }
-                    },
+                    extra_body=(
+                        self.thinking_payload(step)
+                    ),
                 )
             )
 
@@ -1214,6 +1302,10 @@ class LibraryAgent:
         }
         """
 
+        # Drop the oldest turns before a new one starts, so the
+        # rollback below and the token cost stay bounded.
+        self.trim_messages()
+
         base_len = len(
             self.messages
         )
@@ -1292,7 +1384,7 @@ class LibraryAgent:
         # Agent loop
         # ----------------------------------------------------
 
-        for _ in range(
+        for step in range(
             MAX_STEPS
         ):
 
@@ -1305,11 +1397,9 @@ class LibraryAgent:
                     messages=self.messages,
                     tools=TOOL_DEFINITIONS,
                     tool_choice="auto",
-                    extra_body={
-                        "thinking": {
-                            "type": "enabled"
-                        }
-                    },
+                    extra_body=(
+                        self.thinking_payload(step)
+                    ),
                 )
             )
 
