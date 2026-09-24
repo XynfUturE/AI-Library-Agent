@@ -39,12 +39,14 @@ MAX_STEPS = 8
 # input size of a long conversation stays bounded.
 MAX_CONVERSATION_USER_TURNS = 10
 
-# Reasoning mode used for each LLM call of a turn:
-#   "enabled"  - always reason
-#   "disabled" - never reason
-#   "auto"     - skip reasoning for the first call of a turn and
-#                enable it as soon as the turn needs more steps
-THINKING_MODE = "auto"
+# Reasoning mode used for every LLM call.
+#   "enabled"  - always reason (default, best quality)
+#   "disabled" - never reason (cheapest)
+#
+# The mode has to stay constant for a whole turn: the API rejects a
+# turn that replays an assistant message produced without reasoning
+# while reasoning is switched on.
+THINKING_MODE = "enabled"
 
 MAX_ARG_PREVIEW_LENGTH = 60
 
@@ -804,36 +806,18 @@ class LibraryAgent:
     # REASONING MODE
     # ========================================================
 
-    def thinking_payload(self, step):
+    def thinking_payload(self):
         """
-        Build the reasoning parameter for one LLM call of a turn.
+        Build the reasoning parameter for an LLM call.
 
-        In "auto" mode the first call of a turn runs without
-        reasoning: it only has to pick a tool out of a fixed
-        tool set. Reasoning is enabled from the second call
-        onwards, which means the turn turned out to be
-        multi-step.
+        The value stays constant for the whole turn, so an
+        assistant message produced without reasoning is never
+        replayed back while reasoning is switched on.
         """
-
-        if THINKING_MODE == "enabled":
-
-            enabled = True
-
-        elif THINKING_MODE == "disabled":
-
-            enabled = False
-
-        else:
-
-            enabled = step > 0
 
         return {
             "thinking": {
-                "type": (
-                    "enabled"
-                    if enabled
-                    else "disabled"
-                )
+                "type": THINKING_MODE
             }
         }
 
@@ -1149,7 +1133,7 @@ class LibraryAgent:
                     tools=TOOL_DEFINITIONS,
                     tool_choice="auto",
                     extra_body=(
-                        self.thinking_payload(step)
+                        self.thinking_payload()
                     ),
                 )
             )
@@ -1398,7 +1382,7 @@ class LibraryAgent:
                     tools=TOOL_DEFINITIONS,
                     tool_choice="auto",
                     extra_body=(
-                        self.thinking_payload(step)
+                        self.thinking_payload()
                     ),
                 )
             )
