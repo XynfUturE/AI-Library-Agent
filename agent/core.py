@@ -37,7 +37,16 @@ MAX_STEPS = 8
 
 # Only the most recent user turns are resent to the model, so the
 # input size of a long conversation stays bounded.
+#
+# Trimming has a hidden cost: the API matches a cached prompt by
+# prefix, so sliding the window on every turn invalidates the whole
+# history and it is billed at the full uncached rate again. The
+# window is therefore only cut once it grows past the cap, back
+# down to MAX_CONVERSATION_USER_TURNS in one go, which keeps most
+# turns append-only.
 MAX_CONVERSATION_USER_TURNS = 10
+
+MAX_CONVERSATION_USER_TURNS_CAP = 20
 
 # Reasoning mode used for every LLM call.
 #   "enabled"  - always reason (default, best quality)
@@ -779,6 +788,12 @@ class LibraryAgent:
         The cut is always made on a user message, so the kept
         window never starts with a tool result whose assistant
         message was dropped.
+
+        It only trims once the window grows past the cap, so
+        between two cuts the conversation is append-only. An
+        append-only prefix keeps matching the API's prompt cache,
+        which is billed at a fraction of the uncached rate, while
+        trimming on every turn would invalidate it each time.
         """
 
         user_indexes = [
@@ -789,7 +804,7 @@ class LibraryAgent:
             if message.get("role") == "user"
         ]
 
-        if len(user_indexes) <= MAX_CONVERSATION_USER_TURNS:
+        if len(user_indexes) <= MAX_CONVERSATION_USER_TURNS_CAP:
 
             return
 
@@ -820,6 +835,43 @@ class LibraryAgent:
                 "type": THINKING_MODE
             }
         }
+
+    # ========================================================
+    # TOKEN USAGE
+    # ========================================================
+
+    def log_usage(
+        self,
+        response,
+        step,
+    ):
+        """
+        Report token usage of one LLM call.
+
+        Cached and uncached input tokens are billed at very
+        different rates, so the split is the only way to tell
+        whether the conversation prefix is actually being reused.
+        """
+
+        usage = getattr(
+            response,
+            "usage",
+            None,
+        )
+
+        if usage is None:
+
+            return
+
+        print(
+            "[usage]"
+            f" step={step}"
+            f" prompt={getattr(usage, 'prompt_tokens', None)}"
+            f" cache_hit={getattr(usage, 'prompt_cache_hit_tokens', None)}"
+            f" cache_miss={getattr(usage, 'prompt_cache_miss_tokens', None)}"
+            f" completion={getattr(usage, 'completion_tokens', None)}",
+            flush=True,
+        )
 
     # ========================================================
     # EXECUTE TOOL
@@ -1138,6 +1190,11 @@ class LibraryAgent:
                 )
             )
 
+            self.log_usage(
+                response,
+                step,
+            )
+
             if not response.choices:
 
                 raise RuntimeError(
@@ -1385,6 +1442,11 @@ class LibraryAgent:
                         self.thinking_payload()
                     ),
                 )
+            )
+
+            self.log_usage(
+                response,
+                step,
             )
 
             if not response.choices:
