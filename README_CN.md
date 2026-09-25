@@ -54,10 +54,14 @@ DeepSeek LLM
 * 检查图书可用性
 * 借阅图书
 * 归还图书
+* 到期前续借
+* 借不到的书也有下一步：馆内有就排队预约，馆内没有就留下荐购
+* 归还时自动把下一位读者的预约置为可取
 * 查看当前借阅
 * 查看逾期图书
 * 查看借阅历史
 * 查看当前可借图书
+* 管理端辅助接口：`POST /api/admin/books/lookup-isbn`（OpenLibrary 查书目）、`GET /api/admin/analytics`（流通统计）
 
 例如：
 
@@ -193,7 +197,7 @@ Agent 不允许自己创造：
 * Book ID
 * Book Title
 * Author
-* Availability
+* Availability（"无在借记录"的缓存值：启动时自动修复，管理端 API 拒绝把在借图书改回可借）
 * Due Date
 * Fine Amount
 * Borrowing Result
@@ -243,7 +247,7 @@ no
 
 ## 6. AI Tools
 
-当前 Agent 一共提供 12 个 Tools：
+当前 Agent 一共提供 16 个 Tools：
 
 | Tool                         | 功能          |
 | ---------------------------- | ----------- |
@@ -251,6 +255,10 @@ no
 | `check_book_availability`    | 检查指定图书是否可借  |
 | `borrow_book`                | 借阅图书        |
 | `return_book`                | 归还当前用户借阅的图书 |
+| `renew_book`                 | 续借未逾期的借阅        |
+| `request_book`               | 排队预约，或提交荐购      |
+| `get_my_holds`               | 查看自己的预约与荐购      |
+| `cancel_hold`                | 撤回自己提交的请求       |
 | `get_current_borrowed_books` | 查看当前借阅      |
 | `get_overdue_books`          | 查看当前逾期图书    |
 | `get_book_loan_details`      | 查看指定图书的借阅详情 |
@@ -260,13 +268,13 @@ no
 | `get_borrow_history`         | 查看借阅历史      |
 | `list_available_books`       | 查看所有当前可借图书  |
 
-Tools 的定义（schema）与系统提示词位于（Web 引擎与 `main.py` CLI 共用同一份）：
+Tools 的定义（schema）与系统提示词位于：
 
 ```text
 agent/core.py
 ```
 
-而实际业务逻辑主要位于：
+Agent 循环只实现一次（`LibraryAgent`，Web 与 `main.py` CLI 共用同一个实例逻辑），实际业务逻辑主要位于：
 
 ```text
 agent/tools.py
@@ -276,62 +284,29 @@ agent/tools.py
 
 ## 7. Agent State
 
-`AgentState` 用于保存 Agent 当前任务相关的信息。
-
-主要包含：
+每个会话持有一个 `LibraryAgent` 实例，Agent 状态只包含：
 
 ```text
-current_user_id
-current_username
-current_user_name
-
-goal
-
-requested_book
-requested_book_id
-requested_book_available
-
-alternative_book
-alternative_book_id
-
-borrowed_at
-due_date
-returned_at
-
-is_overdue
-late_days
-
-fine_amount
-fine_paid
-fine_paid_at
-
-payment_amount
-payment_status
-
-completed
-waiting_for_confirmation
-last_action
+user_id            当前登录用户（由系统注入，LLM 无法指定）
+messages           对话历史
+trim window        限制每轮 prompt 大小的裁剪窗口
 ```
 
-例如，在 Alternative Workflow 中：
+多步骤流程不需要额外的状态机：模型通过 tool call 表达每一步动作，最终回答只以 tool 返回的真实结果为依据。例如：
 
 ```text
 User Request
     ↓
-Book unavailable
+search_books（不可借）
     ↓
-waiting_for_confirmation = True
+Agent 说明情况并给出可借替代
     ↓
 User: yes
     ↓
-Find alternative
-    ↓
-Borrow alternative
-    ↓
-completed = True
+borrow_book
 ```
 
-因此 `AgentState` 不只是保存信息，也帮助系统管理多步骤 Agent Workflow。
+这样就不存在"状态机与数据库不同步"的问题，Tool Result 是唯一事实来源。
 
 ---
 
@@ -352,7 +327,7 @@ completed = True
 用户登录后，系统会把当前用户保存到：
 
 ```text
-AgentState.current_user_id
+LibraryAgent.user_id
 ```
 
 后续所有需要用户身份的 Tool 都自动使用这个 ID。
@@ -380,7 +355,7 @@ user_id
 ```text
 Authenticated User
         ↓
-AgentState.current_user_id
+LibraryAgent.user_id
         ↓
 execute_tool()
         ↓
@@ -624,6 +599,16 @@ that one
 
 如果同时存在多个可能的目标，Agent 应该请求用户进一步说明，而不是自行猜测。
 
+### 每轮成本的控制手段
+
+Agent 循环的每一步都会重发系统提示词、Tool Schema 与完整对话，而一个问题可能要走多步。三处限制把开销封顶：
+
+* `MAX_STEPS`（5）限制单轮对话的 LLM 调用次数。
+* 对话窗口只保留最近的用户轮次，而且是攒够一批再裁剪，避免每一步都打掉 prompt 缓存前缀。
+* 工具结果进入上下文前会被截断：超过 25 行的列表会变成 `{"total": n, "returned": 25, "truncated": true, "items": [...]}`，模型仍然知道真实条数。只有 LLM 看到这份截断副本，Web 界面拿到的仍是完整数据。
+
+stdout 上的 `[usage]` 行会按步打印 `prompt` / `cache_hit` / `cache_miss` / `completion` / `reasoning`，这是判断 token 花在哪最快的方式。
+
 ---
 
 ## 15. Error Handling
@@ -726,6 +711,20 @@ DEBUG_MODE = False
 * Fine Amount
 * Fine Payment Status
 * Fine Payment Time
+* Renewals（续借次数）
+
+---
+
+### `holds`
+
+需求队列，预约与荐购共用一张表：
+
+* 请求 ID、读者 ID
+* 图书引用（荐购时为 `NULL`）
+* 读者填写的书名
+* kind：`hold`（馆内有但已借空）或 `suggestion`（馆内没有）
+* status：`waiting` → `ready`（归还后被留给他）→ `cancelled`
+* 创建时间、变为可取的时间
 
 ---
 
@@ -820,8 +819,12 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 
 ```text
 .
-├── main.py                 # 终端 CLI 入口（Rich）
+├── main.py                 # 终端 CLI（LibraryAgent 的瘦客户端）
 ├── requirements.txt
+├── requirements-dev.txt    # 仅测试依赖
+├── requirements-mcp.txt    # 可选的 MCP 依赖
+├── pytest.ini
+├── render.yaml             # Render 一键部署蓝图
 ├── Dockerfile
 ├── .dockerignore
 ├── .env.example
@@ -830,13 +833,34 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 ├── README_CN.md
 │
 ├── agent/                  # 共享业务层
+│   ├── analytics.py        # 馆员统计查询
 │   ├── auth.py
 │   ├── catalog.py
-│   ├── core.py             # Agent 编排（LLM + 工具调用）
-│   ├── database.py         # SQLite 表结构 + 种子数据
-│   ├── errors.py
-│   ├── state.py
-│   └── tools.py
+│   ├── core.py             # 唯一的 Agent 循环 + Tool Schema
+│   ├── database.py         # SQLite 表结构、迁移 + 种子数据
+│   ├── isbn.py             # ISBN 查书目（OpenLibrary）
+│   └── tools.py            # 图书馆业务逻辑
+│
+├── scripts/
+│   ├── due_reminders.py    # 供 cron 调用的到期/逾期清单
+│   ├── isbn_lookup.py      # 命令行 ISBN 查书
+│   └── mcp_server.py       # 可选 MCP 服务端（需 requirements-mcp.txt）
+│
+├── tests/                  # pytest 测试（离线、临时数据库）
+│   ├── conftest.py
+│   ├── test_agent_loop.py
+│   ├── test_analytics.py
+│   ├── test_catalog.py
+│   ├── test_due_reminders.py
+│   ├── test_fines.py
+│   ├── test_holds.py
+│   ├── test_isbn.py
+│   ├── test_loans.py
+│   ├── test_mcp_server.py
+│   ├── test_reminders.py
+│   └── test_web_api.py
+│
+├── .github/workflows/ci.yml
 │
 └── web/                    # FastAPI 应用
     ├── app.py
@@ -897,6 +921,9 @@ python -m pip install -r requirements.txt
 
 ```env
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+ENABLE_DEMO_LOGIN=1
+CHAT_RATE_LIMIT_PER_MINUTE=20
+# LIBRARY_DB_PATH=/data/library.db
 ```
 
 程序通过：
@@ -906,6 +933,23 @@ os.getenv("DEEPSEEK_API_KEY")
 ```
 
 读取 API Key。
+
+`CHAT_RATE_LIMIT_PER_MINUTE` 限制单个会话每分钟的聊天请求数（默认 20，设为 0 关闭）。聊天是唯一会真实花钱的接口，所以默认开启限流。
+
+到期提醒的发送配置是独立的（只有 `scripts/due_reminders.py` 会对外发消息）：
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=library@example.com
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM=library@example.com
+SMTP_TLS=1
+```
+
+没有 `SMTP_HOST` 时，脚本仍可打印清单，但 `--email` 会明确报错退出。
+
+`LIBRARY_DB_PATH` 可选，用于把 SQLite 指向其他路径（测试或挂载持久化卷时使用），默认 `database/library.db`。
 
 项目同时提供：
 
@@ -955,21 +999,50 @@ python main.py
 4. Exit
 ```
 
-登录以后进入主菜单：
+登录以后直接进入对话界面。除了自然语言，还支持不消耗 token 的斜杠命令（直接调用工具）：
 
 ```text
-1. Search for a book
-2. Check book availability
-3. Borrow a book
-4. Return a book
-5. View borrowing history
-6. View available books
-7. View fines
-8. My current borrowed books
-9. My overdue books
-10. Chat with AI Agent
-11. Logout
+/search <text>   搜索图书
+/borrow <id>     借书
+/return <id>     还书
+/check <id>      查询是否可借
+/request <id|title>  预约排队或荐购
+/cancel <hold id>    撤回请求
+/available       可借图书列表
+/loans           当前借阅
+/holds           我的预约与荐购
+/overdue         逾期图书
+/fines           未付罚金
+/history         借阅历史
+/help            命令列表
+/quit            退出
 ```
+
+CLI 与 Web 共用同一个 `LibraryAgent`：输入的自然语言会带上当前登录用户身份交给 Agent 处理。
+
+### 方式 D：MCP 服务端（可选）
+
+同一批工具也可以直接暴露给任意 MCP 客户端（Codex、Claude Desktop 等），不经过自带的聊天界面：
+
+```powershell
+pip install -r requirements.txt -r requirements-mcp.txt
+python scripts/mcp_server.py --user-id 1
+```
+
+MCP 没有会话概念，因此服务端在启动时绑定一个图书馆用户，并在每次调用中注入该 user_id，逻辑与 Web 聊天一致。MCP SDK 会额外引入约十个依赖包，所以单独放在 requirements-mcp.txt 中。
+
+### 方式 E：部署
+
+`render.yaml` 是本仓库的 Render 蓝图：构建 `Dockerfile`、健康检查指向 `/`，并把 `DEEPSEEK_API_KEY` 留给控制台填写（`sync: false`），不会把密钥提交进仓库。
+
+```text
+Render：New + → Blueprint → 选择本仓库
+Zeabur：新建项目 → 从 Git 部署（Dockerfile 已处理 $PORT）
+```
+
+两个平台都会注入 `PORT`，入口已经兼容。Render 免费层没有持久盘，每次部署都会用种子数据重建 `database/library.db`；要保留数据就挂载磁盘并设置 `LIBRARY_DB_PATH`。
+
+到期提醒和备份不属于 Web 进程，请用调度器（Render 定时任务、GitHub Actions schedule 或 Windows 任务计划）运行 `scripts/due_reminders.py`，传 `--email` 或 `--webhook`。
 
 ---
 
@@ -992,6 +1065,33 @@ python main.py
 ## 25. Testing
 
 目前项目已经完成多个层面的测试。
+
+### 自动化测试
+
+测试完全离线：LLM 客户端被替换为假实现，数据库是临时文件（见 `tests/conftest.py`），因此不需要 API Key，也不会动 `database/library.db`。
+
+```powershell
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest
+```
+
+| 测试文件                 | 覆盖内容                                     |
+| -------------------- | ---------------------------------------- |
+| `test_fines.py`      | 罚金计算、按自然日边界                              |
+| `test_loans.py`      | 借书 / 还书 / 逾期罚金 / 重复缴费、跨用户隔离               |
+| `test_catalog.py`    | 图书创建 / 更新 / CSV 导入、ISBN 唯一性、可借状态一致性      |
+| `test_reminders.py`  | 到期清单、续借规则（次数上限、逾期、他人借阅）                  |
+| `test_agent_loop.py` | 工具分发、SSE 事件、失败回滚、Schema 与分发一致性            |
+| `test_web_api.py`    | 会话校验、Demo 登录、聊天、429 限流                    |
+| `test_mcp_server.py` | MCP 工具与 Agent Tool Schema 一致（未安装 requirements-mcp.txt 时自动跳过） |
+| `test_isbn.py`       | ISBN 校验、OpenLibrary 解析、作者补全、各类失败路径        |
+| `test_analytics.py`  | 概览计数、热门图书、月度借阅分桶                        |
+| `test_due_reminders.py` | 提醒摘要、SMTP 发送、Webhook POST、失败上报           |
+| `test_holds.py`      | 预约排队位置、归还是提升队列、荐购、撤回               |
+
+GitHub Actions 会在每次 push 与 pull request 上运行同一命令（`.github/workflows/ci.yml`）。
+
+---
 
 ### Functional Testing
 
@@ -1079,7 +1179,6 @@ python main.py
 * Long-term Memory
 * Better Recommendation Ranking
 * Multi-Agent Architecture
-* MCP-based Tools
 * Agent Planning
 * Agent Tracing / Observability
 

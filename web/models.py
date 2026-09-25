@@ -157,6 +157,16 @@ class AdminBookImportRequest(BaseModel):
     csv_text: str
 
 
+class AdminIsbnLookupRequest(BaseModel):
+    isbn: str
+
+
+class AdminIsbnLookupResult(BaseModel):
+    success: bool
+    message: str
+    book: dict | None = None
+
+
 class AdminBookImportResult(BaseModel):
     success: bool
     message: str

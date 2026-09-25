@@ -32,10 +32,14 @@ The application also includes authentication, user-specific data isolation, borr
 * Check book availability
 * Borrow books
 * Return books
+* Renew a loan before it is due
+* Ask for a book that is not on the shelf: join the hold queue when the library owns it, or leave a purchase suggestion when it does not
+* Be told when a returned copy is held for you (the next reader in the queue is promoted automatically)
 * View currently borrowed books
 * View overdue books
 * View borrowing history
 * View available books
+* Cataloguing helpers for admins: `POST /api/admin/books/lookup-isbn` (OpenLibrary metadata) and `GET /api/admin/analytics` (circulation reports)
 
 ### Fine Management
 
@@ -171,7 +175,7 @@ A book cannot be borrowed until its availability has been verified.
 
 ## 5. AI Tools
 
-The system currently provides 12 tools to the AI agent:
+The system currently provides 16 tools to the AI agent:
 
 | Tool                         | Purpose                                           |
 | ---------------------------- | ------------------------------------------------- |
@@ -179,6 +183,10 @@ The system currently provides 12 tools to the AI agent:
 | `check_book_availability`    | Check whether a book is available                 |
 | `borrow_book`                | Borrow an available book                          |
 | `return_book`                | Return a book belonging to the authenticated user |
+| `renew_book`                 | Extend the due date of a non-overdue loan         |
+| `request_book`               | Queue a hold, or record a purchase suggestion     |
+| `get_my_holds`               | List the current user's holds and suggestions     |
+| `cancel_hold`                | Withdraw one of the user's own requests           |
 | `get_current_borrowed_books` | Retrieve active loans for the current user        |
 | `get_overdue_books`          | Retrieve overdue active loans                     |
 | `get_book_loan_details`      | Retrieve active or latest returned loan details   |
@@ -188,13 +196,13 @@ The system currently provides 12 tools to the AI agent:
 | `get_borrow_history`         | Retrieve the current user's borrowing history     |
 | `list_available_books`       | Retrieve currently available books                |
 
-The tool schemas and system prompt are defined once in `agent/core.py` (imported by both the web engine and the `main.py` CLI), while the actual business logic is implemented in `agent/tools.py`.
+The tool schemas and the system prompt are defined once in `agent/core.py`, the agent loop lives in `LibraryAgent` (also `agent/core.py`), and the actual business logic is implemented in `agent/tools.py`. The web UI and the terminal CLI both drive the same `LibraryAgent`, so there is only one loop to maintain.
 
 ---
 
 ## 6. Authentication and User Data Isolation
 
-The application maintains the identity of the currently authenticated user through `AgentState`.
+Each session owns one `LibraryAgent` instance, which holds the identity of the currently authenticated user.
 
 User-specific operations receive the authenticated user's ID automatically.
 
@@ -205,7 +213,7 @@ Authenticated User
         
         ↓
 
-AgentState.current_user_id
+LibraryAgent.user_id
         
         ↓
 
@@ -304,38 +312,27 @@ Can I borrow that one?
 
 The agent can use the previous conversation context when the reference is unambiguous.
 
+### Keeping the per-turn cost bounded
+
+Every step of the agent loop resends the system prompt, the tool schemas and the whole conversation, and the model may run several steps for one question. Three limits keep that bounded:
+
+* `MAX_STEPS` (5) caps the LLM calls per user turn.
+* The conversation window keeps only the most recent user turns, and trims in batches so the prompt cache keeps matching.
+* Tool results are capped before they enter the context: a list longer than 25 rows arrives as `{"total": n, "returned": 25, "truncated": true, "items": [...]}`, so the model still knows the real count. Only the LLM sees this copy — the web UI keeps the complete data.
+
+`[usage]` lines on stdout report `prompt` / `cache_hit` / `cache_miss` / `completion` / `reasoning` per step, which is the fastest way to see where the tokens actually go.
+
 ---
 
 ## 10. Agent State
 
-`AgentState` stores important information about the current task, including:
+All per-session state lives in the `LibraryAgent` instance:
 
-* authenticated user
-* requested book
-* requested book ID
-* availability
-* alternative book
-* loan dates
-* overdue status
-* fine information
-* payment information
-* task completion state
-* confirmation state
-* last action
+* the authenticated user ID (injected into every tool call, never supplied by the LLM)
+* the conversation history
+* the trim window that bounds prompt size
 
-The state supports multi-step workflows such as:
-
-```text
-Unavailable Book
-       ↓
-Ask User
-       ↓
-Yes
-       ↓
-Find Alternative
-       ↓
-Borrow Alternative
-```
+Task progress is not stored in a separate state machine. The model reports what it is doing through tool calls, and the tool results are the only source of truth for the answer, so there is no parallel bookkeeping to keep in sync.
 
 ---
 
@@ -392,7 +389,7 @@ Stores library catalogue information:
 * book ID
 * title
 * author
-* availability
+* availability (a cache of "no active loan": repaired at startup, and the admin API refuses to mark a borrowed book as available)
 * category reference
 * ISBN
 * publisher
@@ -424,6 +421,18 @@ Stores borrowing transactions:
 * final fine amount
 * fine payment status
 * payment date
+* renewals used
+
+### `holds`
+
+The demand queue, shared by holds and purchase suggestions:
+
+* request ID and reader ID
+* book reference (NULL for a purchase suggestion)
+* title as asked for
+* kind: `hold` (library owns it, all copies out) or `suggestion` (library does not own it)
+* status: `waiting` -> `ready` (a returned copy is held for that reader) -> `cancelled`
+* created time and the time it became ready
 
 ---
 
@@ -471,8 +480,12 @@ Some sensitive operations also use immediate transactions to reduce race-conditi
 
 ```text
 .
-├── main.py                 # Terminal CLI entry point (Rich)
+├── main.py                 # Terminal CLI (thin client over LibraryAgent)
 ├── requirements.txt
+├── requirements-dev.txt    # Test-only dependencies
+├── requirements-mcp.txt    # Optional MCP server dependency
+├── pytest.ini
+├── render.yaml             # One-click deploy blueprint (Render)
 ├── Dockerfile
 ├── .dockerignore
 ├── .env.example
@@ -482,12 +495,33 @@ Some sensitive operations also use immediate transactions to reduce race-conditi
 │
 ├── agent/                  # Shared business layer
 │   ├── auth.py
+│   ├── analytics.py        # Librarian reporting queries
 │   ├── catalog.py
-│   ├── core.py             # Agent orchestration (LLM + tools)
-│   ├── database.py         # SQLite schema + seed data
-│   ├── errors.py
-│   ├── state.py
-│   └── tools.py
+│   ├── core.py             # Single agent loop + tool schemas
+│   ├── database.py         # SQLite schema, migrations + seed data
+│   ├── isbn.py             # ISBN -> metadata (OpenLibrary)
+│   └── tools.py            # Library business logic
+│
+├── scripts/
+│   ├── due_reminders.py    # Cron-friendly due-date/overdue listing
+│   ├── isbn_lookup.py      # ISBN lookup from the command line
+│   └── mcp_server.py       # Optional MCP server (needs requirements-mcp.txt)
+│
+├── tests/                  # pytest suite (offline, throwaway database)
+│   ├── conftest.py
+│   ├── test_agent_loop.py
+│   ├── test_analytics.py
+│   ├── test_catalog.py
+│   ├── test_due_reminders.py
+│   ├── test_fines.py
+│   ├── test_holds.py
+│   ├── test_isbn.py
+│   ├── test_loans.py
+│   ├── test_mcp_server.py
+│   ├── test_reminders.py
+│   └── test_web_api.py
+│
+├── .github/workflows/ci.yml
 │
 └── web/                    # FastAPI application
     ├── app.py
@@ -550,6 +584,8 @@ Create a local `.env` file:
 ```env
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 ENABLE_DEMO_LOGIN=1
+CHAT_RATE_LIMIT_PER_MINUTE=20
+# LIBRARY_DB_PATH=/data/library.db
 ```
 
 The project reads the key through:
@@ -559,6 +595,23 @@ os.getenv("DEEPSEEK_API_KEY")
 ```
 
 `ENABLE_DEMO_LOGIN` toggles the password-less demo login. It defaults to enabled so the app works out of the box; set it to `0` to disable the endpoint in production.
+
+`CHAT_RATE_LIMIT_PER_MINUTE` caps how often one session may call the chat endpoints. Chat is the only endpoint that spends real money, so it is limited to 20 requests per minute per session by default; set it to `0` to disable the limit.
+
+`LIBRARY_DB_PATH` is optional. It points the app (and the tests) at a different SQLite file instead of `database/library.db`, which is handy when mounting a persistent volume. A non-numeric `CHAT_RATE_LIMIT_PER_MINUTE` is ignored with a warning and the default of 20 is used.
+
+Delivery of due-date reminders is configured separately, because `scripts/due_reminders.py` is the only component that sends anything:
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=library@example.com
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM=library@example.com
+SMTP_TLS=1
+```
+
+Without `SMTP_HOST` the script still prints the list and exits with a clear error for `--email`.
 
 Do not commit `.env` to Git.
 
@@ -610,7 +663,27 @@ Available options include:
 4. Exit
 ```
 
-After authentication, the main library menu becomes available.
+After authentication you land in the chat view. The CLI is a thin client over the same `LibraryAgent` the web UI uses:
+
+* anything you type goes to the agent (with the signed-in user's identity)
+* slash commands call the tools directly, without spending tokens
+
+```text
+/search <text>   search books
+/borrow <id>     borrow a book
+/return <id>     return a book
+/check <id>      check availability
+/request <id|title>  queue a hold, or suggest a purchase
+/cancel <hold id>    withdraw your request
+/available       list books on the shelf
+/loans           list your current loans
+/holds           list your holds and suggestions
+/overdue         list your overdue books
+/fines           list your unpaid fines
+/history         list your borrowing history
+/help            show the command list
+/quit            exit
+```
 
 ### Option C: Docker (containerized)
 
@@ -620,6 +693,30 @@ docker run -p 8000:8000 -e DEEPSEEK_API_KEY=your_deepseek_api_key_here ai-librar
 ```
 
 The image runs as a non-root user and exposes a built-in health check. Any container platform (Docker, Zeabur, Render, etc.) that injects a `PORT` environment variable is supported via the entry-point's `${PORT:-8000}` fallback.
+
+### Option D: MCP server (optional)
+
+The same tools can be exposed to any MCP client (Codex, Claude Desktop, ...) instead of the bundled chat UI:
+
+```powershell
+pip install -r requirements.txt -r requirements-mcp.txt
+python scripts/mcp_server.py --user-id 1
+```
+
+MCP has no session concept, so the server is bound to one library user at startup and injects that user id into every call, exactly like the web chat does. The MCP SDK pulls in about ten extra packages, which is why it lives in a separate requirements file.
+
+### Option E: Deploy
+
+`render.yaml` is a Render blueprint for this repository: it builds the `Dockerfile`, sets the health check to `/`, and leaves `DEEPSEEK_API_KEY` to be filled in from the dashboard (`sync: false`), so no secret is committed.
+
+```text
+Render:  New + -> Blueprint -> pick this repository
+Zeabur:  New project -> deploy from Git (the Dockerfile handles $PORT)
+```
+
+Both platforms inject `PORT`, which the entry point already honours. The Render free plan has no persistent disk, so `database/library.db` is rebuilt from the seed data on each deploy; attach a disk and set `LIBRARY_DB_PATH` if the data must survive.
+
+Due-date reminders and backups are not part of the web process. Run `scripts/due_reminders.py` from a scheduler (Render cron job, GitHub Actions schedule, or Windows Task Scheduler) with `--email` or `--webhook`.
 
 ---
 
@@ -641,7 +738,34 @@ The demo environment contains a small amount of realistic borrowing data so that
 
 ## 20. Testing
 
-The project has been exercised manually across the following areas. An automated test suite is planned (see "Future Improvements").
+### Automated tests
+
+The suite runs fully offline: the LLM client is faked and the database is a throwaway file (see `tests/conftest.py`), so it needs no API key and never touches `database/library.db`.
+
+```powershell
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest
+```
+
+| Test file                | Covers                                                              |
+| ------------------------ | ------------------------------------------------------------------- |
+| `test_fines.py`          | Fine arithmetic, calendar-day boundaries                            |
+| `test_loans.py`          | Borrow / return / overdue fine / payment idempotency, data isolation |
+| `test_catalog.py`        | Create / update / CSV import, ISBN uniqueness, availability invariant |
+| `test_reminders.py`      | Due-soon listing, renew rules (limit, overdue, other users)          |
+| `test_agent_loop.py`     | Tool dispatch, SSE events, history rollback, schema/dispatch parity  |
+| `test_web_api.py`        | Session guard, demo login, chat, 429 rate limiting                   |
+| `test_mcp_server.py`     | Optional MCP server exposes exactly the agent's tools (auto-skipped when `requirements-mcp.txt` is not installed) |
+| `test_isbn.py`           | ISBN validation, OpenLibrary parsing, author lookup, failure paths   |
+| `test_analytics.py`      | Overview counters, top books, monthly buckets                        |
+| `test_due_reminders.py`  | Digest building, SMTP delivery, webhook POST, failure reporting      |
+| `test_holds.py`          | Hold queue positions, promotion on return, suggestions, withdrawal   |
+
+GitHub Actions runs the same command on every push and pull request (`.github/workflows/ci.yml`).
+
+### Manual testing
+
+The project has also been exercised manually across the following areas.
 
 ### Functional Testing
 
@@ -722,11 +846,9 @@ Possible future development directions include:
 * Reservation and waiting-list systems
 * Admin dashboard
 * Multi-agent workflows
-* MCP-based tool integration
 * Token-level streaming of the final LLM answer in the web UI
 * Server-side session and conversation persistence (sessions are currently in-memory)
 * Cloud database deployment
-* Automated test suites
 * Observability and agent tracing
 
 ---

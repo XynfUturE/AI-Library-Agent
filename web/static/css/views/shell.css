@@ -318,10 +318,16 @@
 .app-shell.sidebar-collapsed .nav-label,
 .app-shell.sidebar-collapsed .sidebar-section,
 .app-shell.sidebar-collapsed .user-chip-info,
-.app-shell.sidebar-collapsed .sidebar-footer-label,
-.app-shell.sidebar-collapsed .sidebar-collapse-button {
+.app-shell.sidebar-collapsed .sidebar-footer-label {
 
     display: none;
+}
+
+/* The collapse button is the only way back on desktop, so it stays in
+   the collapsed rail and flips its chevrons outward. */
+.app-shell.sidebar-collapsed .sidebar-collapse-button .icon {
+
+    transform: rotate(180deg);
 }
 
 

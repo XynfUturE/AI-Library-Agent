@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import os
+import time
 
 from fastapi import (
     FastAPI,
@@ -23,6 +24,10 @@ from fastapi.templating import Jinja2Templates
 from agent import tools as library_tools
 
 from agent import catalog as catalog_service
+
+from agent import analytics as analytics_service
+
+from agent import isbn as isbn_service
 
 from agent.auth import (
     authenticate_user,
@@ -51,6 +56,8 @@ from web.models import (
     AdminBookResult,
     AdminBookImportRequest,
     AdminBookImportResult,
+    AdminIsbnLookupRequest,
+    AdminIsbnLookupResult,
 )
 
 from web.session import (
@@ -535,6 +542,93 @@ def register(
 
 
 # ============================================================
+# CHAT RATE LIMIT
+#
+# Chat is the only endpoint that spends real money, so it is
+# limited per session. The counters live in memory on purpose:
+# like the session store, this app runs as a single worker.
+# ============================================================
+
+def read_chat_rate_limit() -> int:
+    """Read the limit from the environment, falling back to 20."""
+
+    raw = os.getenv(
+        "CHAT_RATE_LIMIT_PER_MINUTE",
+        "20",
+    ).strip()
+
+    try:
+
+        return max(
+            0,
+            int(raw),
+        )
+
+    except ValueError:
+
+        print(
+            "[warn] Invalid CHAT_RATE_LIMIT_PER_MINUTE="
+            f"{raw!r}; using 20.",
+            flush=True,
+        )
+
+        return 20
+
+
+CHAT_RATE_LIMIT_PER_MINUTE = read_chat_rate_limit()
+
+CHAT_RATE_LIMIT_SESSIONS = 1000
+
+_chat_hits: dict[str, list[float]] = {}
+
+
+def check_chat_rate_limit(session_id: str) -> None:
+    """Raise 429 when one session chats too often in a minute."""
+
+    if CHAT_RATE_LIMIT_PER_MINUTE <= 0:
+
+        return
+
+    now = time.time()
+
+    window_start = now - 60
+
+    hits = [
+        hit
+        for hit in _chat_hits.get(session_id, [])
+        if hit > window_start
+    ]
+
+    if len(hits) >= CHAT_RATE_LIMIT_PER_MINUTE:
+
+        _chat_hits[session_id] = hits
+
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Too many chat requests. "
+                "Please wait a moment and try again."
+            ),
+        )
+
+    hits.append(now)
+
+    _chat_hits[session_id] = hits
+
+    # Drop idle sessions so the dict cannot grow without bound.
+    if len(_chat_hits) > CHAT_RATE_LIMIT_SESSIONS:
+
+        for key in [
+            key
+            for key, value in _chat_hits.items()
+            if not value
+            or value[-1] <= window_start
+        ]:
+
+            _chat_hits.pop(key, None)
+
+
+# ============================================================
 # NORMAL CHAT
 # ============================================================
 
@@ -560,6 +654,11 @@ def chat(
             status_code=401,
             detail="Please log in first.",
         )
+
+
+    check_chat_rate_limit(
+        x_session_id or ""
+    )
 
 
     agent = ensure_agent(
@@ -623,6 +722,11 @@ def chat_stream(
             status_code=401,
             detail="Please log in first.",
         )
+
+
+    check_chat_rate_limit(
+        x_session_id or ""
+    )
 
 
     agent = ensure_agent(
@@ -1298,3 +1402,65 @@ def admin_import_books(
     )
 
     return result
+
+
+# ============================================================
+# ADMIN: ISBN LOOKUP (CATALOGUING HELPER)
+# ============================================================
+
+@app.post(
+    "/api/admin/books/lookup-isbn",
+    response_model=AdminIsbnLookupResult,
+)
+def admin_lookup_isbn(
+    request: AdminIsbnLookupRequest,
+    x_session_id: str | None = Header(
+        default=None
+    ),
+):
+    """
+    Look book metadata up by ISBN so the admin form can be filled
+    in instead of typed from scratch.
+    """
+
+    require_admin(
+        x_session_id
+    )
+
+    result = isbn_service.fetch_book_metadata(
+        request.isbn
+    )
+
+    return AdminIsbnLookupResult(
+        success=result["success"],
+        message=result["message"],
+        book=result.get(
+            "book"
+        ),
+    )
+
+
+# ============================================================
+# ADMIN: ANALYTICS
+# ============================================================
+
+@app.get(
+    "/api/admin/analytics",
+)
+def admin_analytics(
+    x_session_id: str | None = Header(
+        default=None
+    ),
+):
+    """
+    Circulation numbers for the librarian dashboard.
+
+    Returned as a plain object: the shape is a set of aggregate
+    counters that changes with the reporting needs.
+    """
+
+    require_admin(
+        x_session_id
+    )
+
+    return analytics_service.get_dashboard()

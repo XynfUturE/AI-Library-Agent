@@ -9,6 +9,10 @@ from agent.tools import (
     check_book_availability,
     borrow_book,
     return_book,
+    renew_book,
+    request_book,
+    get_my_holds,
+    cancel_hold,
     get_current_borrowed_books,
     get_overdue_books,
     get_book_loan_details,
@@ -33,7 +37,19 @@ load_dotenv()
 
 MODEL_NAME = "deepseek-flash"
 
-MAX_STEPS = 8
+# Upper bound on LLM calls per user turn. Every step resends the
+# system prompt, the tool schemas and the whole conversation, so a
+# long loop multiplies the cost of a single question.
+MAX_STEPS = 5
+
+# Tool results are replayed into the context on every later step, so
+# what the model sees is capped here rather than in each tool: the web
+# layer still gets the full data, and one guard covers every tool,
+# present and future. A truncated list is reported as
+# {"total": n, "returned": k, "truncated": true, "items": [...]}.
+TOOL_RESULT_ITEM_LIMIT = 25
+
+TOOL_RESULT_TEXT_LIMIT = 2000
 
 # Only the most recent user turns are resent to the model, so the
 # input size of a long conversation stays bounded.
@@ -73,6 +89,14 @@ TOOL_PROGRESS_MESSAGES = {
         "Processing the borrowing request...",
     "return_book":
         "Processing the return request...",
+    "renew_book":
+        "Renewing the book...",
+    "request_book":
+        "Checking availability and the queue...",
+    "get_my_holds":
+        "Checking your holds...",
+    "cancel_hold":
+        "Withdrawing your request...",
     "get_current_borrowed_books":
         "Checking your current borrowed books...",
     "get_overdue_books":
@@ -189,6 +213,112 @@ def _sanitize_tool_result(
     return result
 
 
+def _limit_list(items):
+    """
+    Cap a list of tool rows, keeping the real total visible.
+
+    The model still needs to know how many rows exist, otherwise it
+    would report a truncated list as the whole answer.
+    """
+
+    if len(items) <= TOOL_RESULT_ITEM_LIMIT:
+
+        return items
+
+    return {
+        "total": len(items),
+        "returned": TOOL_RESULT_ITEM_LIMIT,
+        "truncated": True,
+        "items": items[
+            :TOOL_RESULT_ITEM_LIMIT
+        ],
+    }
+
+
+def _limit_tool_result(
+    result,
+):
+    """
+    Bound the size of one tool result before it enters the context.
+
+    Only the LLM-facing copy is limited: the web layer calls the same
+    tools directly and keeps the complete data.
+
+    ponytail: only top-level lists (and lists one level inside a
+    dict) are capped. Deeper nesting would need a recursive walk;
+    add it if a tool ever returns list-inside-dict-inside-dict.
+    """
+
+    if isinstance(
+        result,
+        list,
+    ):
+
+        return _limit_list(
+            result
+        )
+
+    if isinstance(
+        result,
+        dict,
+    ):
+
+        limited = {}
+
+        for key, value in result.items():
+
+            if isinstance(
+                value,
+                list,
+            ):
+
+                limited[key] = _limit_list(
+                    value
+                )
+
+            elif (
+                isinstance(
+                    value,
+                    str,
+                )
+                and
+                len(value) > TOOL_RESULT_TEXT_LIMIT
+            ):
+
+                limited[key] = (
+                    value[
+                        :TOOL_RESULT_TEXT_LIMIT
+                    ]
+                    +
+                    "..."
+                )
+
+            else:
+
+                limited[key] = value
+
+        return limited
+
+    if (
+        isinstance(
+            result,
+            str,
+        )
+        and
+        len(result) > TOOL_RESULT_TEXT_LIMIT
+    ):
+
+        return (
+            result[
+                :TOOL_RESULT_TEXT_LIMIT
+            ]
+            +
+            "..."
+        )
+
+    return result
+
+
 # ============================================================
 # SYSTEM PROMPT
 # ============================================================
@@ -204,6 +334,7 @@ You help the authenticated library user with:
 - returning books
 - checking current borrowed books
 - checking overdue books
+- renewing a loan before it is due
 - checking fines
 - checking unpaid fines
 - paying fines
@@ -228,6 +359,10 @@ Never invent:
 
 Never claim success unless the corresponding tool
 returned success=true.
+
+Long tool results are truncated. When a list comes back as
+{"total": n, "returned": k, "items": [...]}, report the real
+total, not the number of rows you can see.
 
 The application supplies the authenticated user's ID.
 Never ask the user for a user ID.
@@ -512,6 +647,124 @@ TOOL_DEFINITIONS = [
     },
 
     # --------------------------------------------------------
+    # REQUEST BOOK (HOLD OR PURCHASE SUGGESTION)
+    # --------------------------------------------------------
+
+    {
+        "type": "function",
+        "function": {
+            "name": "request_book",
+            "description": (
+                "Ask for one book that cannot be borrowed right now. "
+                "The library queues a hold when it owns the title, or "
+                "records a purchase suggestion when it does not. Pass "
+                "book_id when a search already found the book, else "
+                "the title."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "book_id": {
+                        "type": "integer",
+                        "description": (
+                            "Book ID, when known."
+                        ),
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": (
+                            "Book title, when no ID is known."
+                        ),
+                    },
+                },
+            },
+        },
+    },
+
+    # --------------------------------------------------------
+    # MY HOLDS
+    # --------------------------------------------------------
+
+    {
+        "type": "function",
+        "function": {
+            "name": "get_my_holds",
+            "description": (
+                "List the authenticated user's active holds and "
+                "purchase suggestions, with queue position."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+
+    # --------------------------------------------------------
+    # CANCEL HOLD
+    # --------------------------------------------------------
+
+    {
+        "type": "function",
+        "function": {
+            "name": "cancel_hold",
+            "description": (
+                "Withdraw one of the authenticated user's own "
+                "holds or purchase suggestions."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "hold_id": {
+                        "type": "integer",
+                        "description": (
+                            "Hold ID from get_my_holds."
+                        ),
+                    }
+                },
+                "required": [
+                    "hold_id"
+                ],
+            },
+        },
+    },
+
+    # --------------------------------------------------------
+    # CURRENT BORROWED BOOKS
+    # --------------------------------------------------------
+
+    # --------------------------------------------------------
+    # RENEW
+    # --------------------------------------------------------
+
+    {
+        "type": "function",
+        "function": {
+            "name": "renew_book",
+            "description": (
+                "Extend the due date of a book the "
+                "authenticated user currently has borrowed. "
+                "Only possible while the loan is not overdue "
+                "and the renewal limit is not reached."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "book_id": {
+                        "type": "integer",
+                        "description": (
+                            "Book ID."
+                        ),
+                    }
+                },
+                "required": [
+                    "book_id"
+                ],
+            },
+        },
+    },
+
+    # --------------------------------------------------------
     # CURRENT BORROWED BOOKS
     # --------------------------------------------------------
 
@@ -758,6 +1011,9 @@ class LibraryAgent:
             api_key=api_key,
             base_url="https://api.deepseek.com",
             timeout=60.0,
+            # Retry transient upstream failures (429 / 5xx /
+            # connection resets) instead of losing the whole turn.
+            max_retries=3,
         )
 
         # ----------------------------------------------------
@@ -867,13 +1123,37 @@ class LibraryAgent:
 
             return
 
+        # Reasoning tokens are billed as output, so they are reported
+        # separately: without this the completion count looks huge and
+        # the cause is invisible.
+        details = getattr(
+            usage,
+            "completion_tokens_details",
+            None,
+        )
+
+        reasoning = getattr(
+            details,
+            "reasoning_tokens",
+            None,
+        )
+
+        if reasoning is None:
+
+            reasoning = getattr(
+                usage,
+                "reasoning_tokens",
+                None,
+            )
+
         print(
             "[usage]"
             f" step={step}"
             f" prompt={getattr(usage, 'prompt_tokens', None)}"
             f" cache_hit={getattr(usage, 'prompt_cache_hit_tokens', None)}"
             f" cache_miss={getattr(usage, 'prompt_cache_miss_tokens', None)}"
-            f" completion={getattr(usage, 'completion_tokens', None)}",
+            f" completion={getattr(usage, 'completion_tokens', None)}"
+            f" reasoning={reasoning}",
             flush=True,
         )
 
@@ -939,6 +1219,42 @@ class LibraryAgent:
                 return return_book(
                     arguments["book_id"],
                     self.user_id,
+                )
+
+            # ------------------------------------------------
+            # RENEW
+            # ------------------------------------------------
+
+            if function_name == "renew_book":
+
+                return renew_book(
+                    arguments["book_id"],
+                    self.user_id,
+                )
+
+            # ------------------------------------------------
+            # REQUEST / QUEUE
+            # ------------------------------------------------
+
+            if function_name == "request_book":
+
+                return request_book(
+                    self.user_id,
+                    arguments.get("book_id"),
+                    arguments.get("title"),
+                )
+
+            if function_name == "get_my_holds":
+
+                return get_my_holds(
+                    self.user_id
+                )
+
+            if function_name == "cancel_hold":
+
+                return cancel_hold(
+                    self.user_id,
+                    arguments["hold_id"],
                 )
 
             # ------------------------------------------------
@@ -1135,8 +1451,26 @@ class LibraryAgent:
 
         try:
 
-            return self._chat_body(
+            # There is exactly one Agent loop (the generator in
+            # _chat_stream_body). The blocking call simply drains
+            # it and keeps the final answer.
+            for event in self._chat_stream_body(
                 user_message
+            ):
+
+                if event["type"] == "final":
+
+                    return event["message"]
+
+                if event["type"] == "error":
+
+                    raise RuntimeError(
+                        event["message"]
+                    )
+
+            raise RuntimeError(
+                "The agent could not complete the "
+                "request within the allowed number of steps."
             )
 
         except Exception:
@@ -1148,197 +1482,6 @@ class LibraryAgent:
             ]
 
             raise
-
-    def _chat_body(
-        self,
-        user_message: str,
-    ):
-        """
-        Non-streaming Agent loop (see chat()).
-        """
-
-        if not isinstance(
-            user_message,
-            str,
-        ):
-
-            raise TypeError(
-                "Message must be a string."
-            )
-
-        user_message = user_message.strip()
-
-        if not user_message:
-
-            raise ValueError(
-                "Message cannot be empty."
-            )
-
-        # ----------------------------------------------------
-        # Add user message
-        # ----------------------------------------------------
-
-        self.messages.append(
-            {
-                "role": "user",
-                "content": user_message,
-            }
-        )
-
-        # ----------------------------------------------------
-        # Agent loop
-        # ----------------------------------------------------
-
-        for step in range(
-            MAX_STEPS
-        ):
-
-            response = (
-                self.client
-                .chat
-                .completions
-                .create(
-                    model=self.model,
-                    messages=self.messages,
-                    tools=TOOL_DEFINITIONS,
-                    tool_choice="auto",
-                    extra_body=(
-                        self.thinking_payload()
-                    ),
-                )
-            )
-
-            self.log_usage(
-                response,
-                step,
-            )
-
-            if not response.choices:
-
-                raise RuntimeError(
-                    "The AI service returned "
-                    "an empty response."
-                )
-
-            message = (
-                response
-                .choices[0]
-                .message
-            )
-
-            # ------------------------------------------------
-            # Preserve assistant message
-            # ------------------------------------------------
-
-            self.messages.append(
-                self.build_assistant_message(
-                    message
-                )
-            )
-
-            # ------------------------------------------------
-            # Final answer
-            # ------------------------------------------------
-
-            if not message.tool_calls:
-
-                return (
-                    message.content
-                    or
-                    ""
-                )
-
-            # ------------------------------------------------
-            # Tool calls
-            # ------------------------------------------------
-
-            for tool_call in message.tool_calls:
-
-                function_name = (
-                    tool_call
-                    .function
-                    .name
-                )
-
-                raw_arguments = (
-                    tool_call
-                    .function
-                    .arguments
-                )
-
-                # --------------------------------------------
-                # Parse arguments
-                # --------------------------------------------
-
-                try:
-
-                    arguments = json.loads(
-                        raw_arguments
-                    )
-
-                except (
-                    json.JSONDecodeError,
-                    TypeError,
-                    ValueError,
-                ):
-
-                    result = {
-                        "success": False,
-                        "error_type":
-                            "ValidationError",
-                        "message": (
-                            "The AI generated "
-                            "invalid tool parameters."
-                        ),
-                    }
-
-                else:
-
-                    if not isinstance(
-                        arguments,
-                        dict,
-                    ):
-
-                        result = {
-                            "success": False,
-                            "error_type":
-                                "ValidationError",
-                            "message": (
-                                "The AI generated "
-                                "invalid tool parameters."
-                            ),
-                        }
-
-                    else:
-
-                        result = self.execute_tool(
-                            function_name,
-                            arguments,
-                        )
-
-                # --------------------------------------------
-                # Add Tool Result
-                # --------------------------------------------
-
-                self.messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": (
-                            tool_call.id
-                        ),
-                        "content": json.dumps(
-                            _sanitize_tool_result(
-                                result
-                            ),
-                            ensure_ascii=False,
-                        ),
-                    }
-                )
-
-        raise RuntimeError(
-            "The agent could not complete the "
-            "request within the allowed number of steps."
-        )
 
     # ========================================================
     # STREAMING CHAT
@@ -1369,23 +1512,32 @@ class LibraryAgent:
             self.messages
         )
 
-        committed = False
+        completed = False
+
+        failed = False
 
         try:
 
-            yield from self._chat_stream_body(
+            for event in self._chat_stream_body(
                 user_message
-            )
+            ):
 
-            committed = True
+                if event["type"] == "error":
+
+                    failed = True
+
+                yield event
+
+            completed = True
 
         finally:
 
-            if not committed:
+            if failed or not completed:
 
-                # The stream was closed before it completed
-                # (e.g. the client disconnected): drop the
-                # half-finished turn from conversation history.
+                # Either the stream was closed before it
+                # completed (e.g. the client disconnected) or the
+                # turn failed: drop the half-finished turn so it
+                # cannot pollute later conversations.
                 del self.messages[
                     base_len:
                 ]
@@ -1447,20 +1599,37 @@ class LibraryAgent:
             MAX_STEPS
         ):
 
-            response = (
-                self.client
-                .chat
-                .completions
-                .create(
-                    model=self.model,
-                    messages=self.messages,
-                    tools=TOOL_DEFINITIONS,
-                    tool_choice="auto",
-                    extra_body=(
-                        self.thinking_payload()
-                    ),
+            try:
+
+                response = (
+                    self.client
+                    .chat
+                    .completions
+                    .create(
+                        model=self.model,
+                        messages=self.messages,
+                        tools=TOOL_DEFINITIONS,
+                        tool_choice="auto",
+                        extra_body=(
+                            self.thinking_payload()
+                        ),
+                    )
                 )
-            )
+
+            except Exception:
+
+                # Report upstream failures as an event instead of
+                # raising: the caller rolls the turn back and the
+                # next request starts from a clean history.
+                yield {
+                    "type": "error",
+                    "message": (
+                        "The AI service could not "
+                        "complete your request."
+                    ),
+                }
+
+                return
 
             self.log_usage(
                 response,
@@ -1609,8 +1778,10 @@ class LibraryAgent:
                             tool_call.id
                         ),
                         "content": json.dumps(
-                            _sanitize_tool_result(
-                                result
+                            _limit_tool_result(
+                                _sanitize_tool_result(
+                                    result
+                                )
                             ),
                             ensure_ascii=False,
                         ),

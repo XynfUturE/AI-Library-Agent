@@ -229,6 +229,11 @@ export function initShell() {
         const collapsed = els.shell.classList.toggle("sidebar-collapsed");
 
         saveSidebarCollapsed(collapsed);
+
+        els.collapseButton.setAttribute(
+            "aria-label",
+            collapsed ? "Expand sidebar" : "Collapse sidebar"
+        );
     });
 
     els.menuButton.addEventListener("click", openSidebar);

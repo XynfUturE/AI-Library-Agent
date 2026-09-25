@@ -9,9 +9,21 @@ from agent.database import get_connection
 
 LOAN_PERIOD_DAYS = 14
 
+RENEWAL_PERIOD_DAYS = 14
+
+# A loan can be extended at most this many times.
+MAX_RENEWALS = 2
+
 FINE_PER_DAY_CENTS = 50
 
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# Tool results are replayed into the LLM context on every later turn,
+# so every listing is capped. Without a cap a single wide search would
+# cost tokens for the rest of the conversation.
+SEARCH_RESULT_LIMIT = 20
+
+AVAILABLE_RESULT_LIMIT = 25
 
 
 # ============================================================
@@ -447,10 +459,13 @@ def search_books(keyword):
                 OR author LIKE ?
 
             ORDER BY id
+
+            LIMIT ?
             """,
             (
                 f"%{keyword}%",
                 f"%{keyword}%",
+                SEARCH_RESULT_LIMIT,
             )
         )
 
@@ -1227,6 +1242,16 @@ def return_book(
 
             }
 
+        # ----------------------------------------------------
+        # Promote the next reader in the hold queue
+        # ----------------------------------------------------
+
+        next_in_queue = promote_next_hold(
+            cursor,
+            record["book_id"],
+            returned_at_text,
+        )
+
         connection.commit()
 
         return {
@@ -1289,7 +1314,10 @@ def return_book(
                     if fine_amount > 0
                     else
                     "No Fine"
-                )
+                ),
+
+            "next_in_queue":
+                next_in_queue
 
         }
 
@@ -1307,6 +1335,1038 @@ def return_book(
 
             "DatabaseError"
 
+        )
+
+    finally:
+
+        if connection is not None:
+
+            connection.close()
+
+
+# ============================================================
+# RENEW BOOK
+# ============================================================
+
+def renew_book(
+    book_id,
+    user_id
+):
+    """
+    Extend the due date of an active loan.
+
+    Only loans that are still within their due date can be renewed,
+    and only MAX_RENEWALS times.
+    """
+
+    validation = validate_authenticated_user(
+        user_id
+    )
+
+    if not validation["success"]:
+
+        return validation
+
+    user_id = validation["user_id"]
+
+    try:
+
+        book_id = int(
+            book_id
+        )
+
+    except (
+        TypeError,
+        ValueError
+    ):
+
+        return {
+
+            "success":
+                False,
+
+            "error_type":
+                "ValidationError",
+
+            "message":
+                "Book ID must be a valid number."
+
+        }
+
+    connection = None
+
+    try:
+
+        connection = get_connection()
+
+        connection.execute(
+            "BEGIN IMMEDIATE"
+        )
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                book_id,
+                book_title,
+                due_date,
+                renewals
+
+            FROM borrow_records
+
+            WHERE book_id = ?
+            AND user_id = ?
+            AND returned_at IS NULL
+
+            LIMIT 1
+            """,
+            (
+                book_id,
+                user_id,
+            )
+        )
+
+        record = cursor.fetchone()
+
+        if record is None:
+
+            connection.rollback()
+
+            return {
+
+                "success":
+                    False,
+
+                "error_type":
+                    "BusinessRuleError",
+
+                "message":
+                    "You have no active loan for this book."
+
+            }
+
+        due_datetime = parse_datetime(
+            record["due_date"]
+        )
+
+        if due_datetime is None:
+
+            connection.rollback()
+
+            return {
+
+                "success":
+                    False,
+
+                "error_type":
+                    "DatabaseError",
+
+                "message":
+                    "The due date of this loan could not be read."
+
+            }
+
+        if calculate_fine_amount(
+            record["due_date"]
+        )["is_overdue"]:
+
+            connection.rollback()
+
+            return {
+
+                "success":
+                    False,
+
+                "error_type":
+                    "BusinessRuleError",
+
+                "message":
+                    "Overdue books cannot be renewed. "
+                    "Please return the book and pay the fine."
+
+            }
+
+        renewals = int(
+            record["renewals"]
+            or
+            0
+        )
+
+        if renewals >= MAX_RENEWALS:
+
+            connection.rollback()
+
+            return {
+
+                "success":
+                    False,
+
+                "error_type":
+                    "BusinessRuleError",
+
+                "message":
+                    "This loan has already been renewed "
+                    f"{MAX_RENEWALS} times."
+
+            }
+
+        new_due_date_text = format_datetime(
+
+            due_datetime
+            +
+            timedelta(
+                days=RENEWAL_PERIOD_DAYS
+            )
+
+        )
+
+        cursor.execute(
+            """
+            UPDATE borrow_records
+
+            SET due_date = ?,
+                renewals = renewals + 1
+
+            WHERE id = ?
+            """,
+            (
+                new_due_date_text,
+                record["id"],
+            )
+        )
+
+        if cursor.rowcount != 1:
+
+            connection.rollback()
+
+            return {
+
+                "success":
+                    False,
+
+                "error_type":
+                    "DatabaseError",
+
+                "message":
+                    "The loan could not be renewed."
+
+            }
+
+        connection.commit()
+
+        return {
+
+            "success":
+                True,
+
+            "message":
+                "Book renewed successfully.",
+
+            "user_id":
+                user_id,
+
+            "loan_id":
+                record["id"],
+
+            "book": {
+
+                "id":
+                    record["book_id"],
+
+                "title":
+                    record["book_title"]
+
+            },
+
+            "previous_due_date":
+                format_datetime(
+                    due_datetime
+                ),
+
+            "due_date":
+                new_due_date_text,
+
+            "renewals":
+                renewals + 1,
+
+            "renewals_left":
+                MAX_RENEWALS - renewals - 1
+
+        }
+
+    except Exception as error:
+
+        if connection is not None:
+
+            connection.rollback()
+
+        return safe_error_result(
+
+            "The loan could not be renewed.",
+
+            error,
+
+            "DatabaseError"
+
+        )
+
+    finally:
+
+        if connection is not None:
+
+            connection.close()
+
+
+# ============================================================
+# DEMAND QUEUE (HOLDS + PURCHASE SUGGESTIONS)
+#
+# One table serves both kinds of demand:
+#
+#   kind = "hold"        the library owns it, every copy is out
+#   kind = "suggestion"  the library does not own it (no book_id)
+#
+# status flow: waiting -> ready (book is back, held for that reader)
+#                     -> cancelled (reader withdrew)
+# ============================================================
+
+MAX_TITLE_LENGTH = 200
+
+
+def _clean_title(title):
+
+    if not isinstance(
+        title,
+        str
+    ):
+
+        return ""
+
+    return title.strip()[
+        :MAX_TITLE_LENGTH
+    ]
+
+
+def _queue_position(cursor, book_id, hold_id):
+    """1-based place in line, counting waiting and ready holds."""
+
+    row = cursor.execute(
+        """
+        SELECT COUNT(*)
+
+        FROM holds
+
+        WHERE book_id = ?
+        AND kind = 'hold'
+        AND status IN ('waiting', 'ready')
+        AND id <= ?
+        """,
+        (
+            book_id,
+            hold_id,
+        )
+    ).fetchone()
+
+    return row[0] if row else 0
+
+
+def _estimated_wait_days(cursor, book_id, position):
+    """
+    Rough wait: the days left on the current loan, plus one loan
+    period for every reader still ahead in the queue.
+    """
+
+    if position > 1:
+
+        return (position - 1) * LOAN_PERIOD_DAYS
+
+    row = cursor.execute(
+        """
+        SELECT due_date
+
+        FROM borrow_records
+
+        WHERE book_id = ?
+        AND returned_at IS NULL
+        AND due_date IS NOT NULL
+
+        ORDER BY due_date
+
+        LIMIT 1
+        """,
+        (
+            book_id,
+        )
+    ).fetchone()
+
+    if row is None:
+
+        return 0
+
+    due_datetime = parse_datetime(
+        row["due_date"]
+    )
+
+    if due_datetime is None:
+
+        return 0
+
+    return max(
+        0,
+        (
+            due_datetime.date()
+            -
+            datetime.now().date()
+        ).days
+    )
+
+
+def promote_next_hold(cursor, book_id, ready_at_text):
+    """
+    Mark the first waiting hold as ready.
+
+    Called when a copy comes back, inside the same transaction as the
+    return, so the queue and the shelf never disagree.
+    """
+
+    row = cursor.execute(
+        """
+        SELECT
+            holds.id,
+            holds.user_id,
+            users.username
+
+        FROM holds
+
+        LEFT JOIN users
+            ON users.id = holds.user_id
+
+        WHERE holds.book_id = ?
+        AND holds.kind = 'hold'
+        AND holds.status = 'waiting'
+
+        ORDER BY holds.id
+
+        LIMIT 1
+        """,
+        (
+            book_id,
+        )
+    ).fetchone()
+
+    if row is None:
+
+        return None
+
+    cursor.execute(
+        """
+        UPDATE holds
+
+        SET status = 'ready',
+            ready_at = ?
+
+        WHERE id = ?
+        """,
+        (
+            ready_at_text,
+            row["id"],
+        )
+    )
+
+    return {
+        "hold_id": row["id"],
+        "user_id": row["user_id"],
+        "username": row["username"],
+    }
+
+
+def request_book(
+    user_id,
+    book_id=None,
+    title=None,
+):
+    """
+    Ask for one book and get the next step back.
+
+    Three outcomes:
+
+    - on the shelf   -> nothing to queue, the reader can borrow now
+    - lent out       -> join the hold queue, with position and estimate
+    - not in catalog -> record a purchase suggestion for the librarian
+    """
+
+    validation = validate_authenticated_user(
+        user_id
+    )
+
+    if not validation["success"]:
+
+        return validation
+
+    user_id = validation["user_id"]
+
+    title_text = _clean_title(
+        title
+    )
+
+    has_book_id = book_id not in (
+        None,
+        "",
+        0,
+        "0",
+    )
+
+    if not has_book_id and not title_text:
+
+        return {
+            "success": False,
+            "error_type": "ValidationError",
+            "message": "Provide a book id or a book title.",
+        }
+
+    if has_book_id:
+
+        try:
+
+            book_id = int(
+                book_id
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            return {
+                "success": False,
+                "error_type": "ValidationError",
+                "message": "Book ID must be a valid number.",
+            }
+
+    connection = None
+
+    try:
+
+        connection = get_connection()
+
+        connection.execute(
+            "BEGIN IMMEDIATE"
+        )
+
+        cursor = connection.cursor()
+
+        book = None
+
+        if has_book_id:
+
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    title,
+                    author,
+                    available
+
+                FROM books
+
+                WHERE id = ?
+
+                LIMIT 1
+                """,
+                (
+                    book_id,
+                )
+            )
+
+            book = cursor.fetchone()
+
+            if book is None:
+
+                connection.rollback()
+
+                return {
+                    "success": False,
+                    "error_type": "BusinessRuleError",
+                    "message": "Book not found.",
+                }
+
+        else:
+
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    title,
+                    author,
+                    available
+
+                FROM books
+
+                WHERE title LIKE ?
+
+                ORDER BY id
+
+                LIMIT 1
+                """,
+                (
+                    f"%{title_text}%",
+                )
+            )
+
+            book = cursor.fetchone()
+
+        # ------------------------------------------------
+        # Not in the catalog: purchase suggestion
+        # ------------------------------------------------
+
+        if book is None:
+
+            duplicate = cursor.execute(
+                """
+                SELECT id
+
+                FROM holds
+
+                WHERE user_id = ?
+                AND kind = 'suggestion'
+                AND status = 'waiting'
+                AND lower(book_title) = lower(?)
+
+                LIMIT 1
+                """,
+                (
+                    user_id,
+                    title_text,
+                )
+            ).fetchone()
+
+            if duplicate is not None:
+
+                connection.rollback()
+
+                return {
+                    "success": True,
+                    "kind": "suggestion",
+                    "hold_id": duplicate["id"],
+                    "title": title_text,
+                    "duplicate": True,
+                    "message": (
+                        "This purchase suggestion is already "
+                        "waiting for the librarian."
+                    ),
+                }
+
+            cursor.execute(
+                """
+                INSERT INTO holds
+                    (
+                        user_id,
+                        book_id,
+                        book_title,
+                        kind,
+                        status,
+                        created_at
+                    )
+
+                VALUES (?, NULL, ?, 'suggestion', 'waiting', ?)
+                """,
+                (
+                    user_id,
+                    title_text,
+                    format_datetime(
+                        datetime.now()
+                    ),
+                )
+            )
+
+            suggestion_id = cursor.lastrowid
+
+            connection.commit()
+
+            return {
+                "success": True,
+                "kind": "suggestion",
+                "hold_id": suggestion_id,
+                "title": title_text,
+                "duplicate": False,
+                "message": (
+                    "The library does not own this title yet; "
+                    "your suggestion was sent to the librarian."
+                ),
+            }
+
+        book_summary = {
+            "id": book["id"],
+            "title": book["title"],
+            "author": book["author"],
+        }
+
+        # ------------------------------------------------
+        # Already borrowed by this reader
+        # ------------------------------------------------
+
+        active = cursor.execute(
+            """
+            SELECT id
+
+            FROM borrow_records
+
+            WHERE book_id = ?
+            AND user_id = ?
+            AND returned_at IS NULL
+
+            LIMIT 1
+            """,
+            (
+                book["id"],
+                user_id,
+            )
+        ).fetchone()
+
+        if active is not None:
+
+            connection.rollback()
+
+            return {
+                "success": True,
+                "kind": "already_borrowed",
+                "book": book_summary,
+                "message": "You already have this book on loan.",
+            }
+
+        reserved = cursor.execute(
+            """
+            SELECT id
+
+            FROM holds
+
+            WHERE book_id = ?
+            AND kind = 'hold'
+            AND status = 'ready'
+
+            LIMIT 1
+            """,
+            (
+                book["id"],
+            )
+        ).fetchone()
+
+        # ------------------------------------------------
+        # On the shelf and nobody is waiting
+        # ------------------------------------------------
+
+        if bool(book["available"]) and reserved is None:
+
+            connection.rollback()
+
+            return {
+                "success": True,
+                "kind": "available",
+                "book": book_summary,
+                "message": (
+                    "This book is on the shelf right now. "
+                    "Ask me to borrow it."
+                ),
+            }
+
+        # ------------------------------------------------
+        # Join the queue
+        # ------------------------------------------------
+
+        duplicate_hold = cursor.execute(
+            """
+            SELECT id
+
+            FROM holds
+
+            WHERE user_id = ?
+            AND book_id = ?
+            AND kind = 'hold'
+            AND status IN ('waiting', 'ready')
+
+            LIMIT 1
+            """,
+            (
+                user_id,
+                book["id"],
+            )
+        ).fetchone()
+
+        if duplicate_hold is not None:
+
+            position = _queue_position(
+                cursor,
+                book["id"],
+                duplicate_hold["id"],
+            )
+
+            wait_days = _estimated_wait_days(
+                cursor,
+                book["id"],
+                position,
+            )
+
+            connection.rollback()
+
+            return {
+                "success": True,
+                "kind": "hold",
+                "hold_id": duplicate_hold["id"],
+                "book": book_summary,
+                "queue_position": position,
+                "estimated_wait_days": wait_days,
+                "duplicate": True,
+                "message": (
+                    "You are already in the queue for this book."
+                ),
+            }
+
+        cursor.execute(
+            """
+            INSERT INTO holds
+                (
+                    user_id,
+                    book_id,
+                    book_title,
+                    kind,
+                    status,
+                    created_at
+                )
+
+            VALUES (?, ?, ?, 'hold', 'waiting', ?)
+            """,
+            (
+                user_id,
+                book["id"],
+                book["title"],
+                format_datetime(
+                    datetime.now()
+                ),
+            )
+        )
+
+        hold_id = cursor.lastrowid
+
+        position = _queue_position(
+            cursor,
+            book["id"],
+            hold_id,
+        )
+
+        wait_days = _estimated_wait_days(
+            cursor,
+            book["id"],
+            position,
+        )
+
+        connection.commit()
+
+        return {
+            "success": True,
+            "kind": "hold",
+            "hold_id": hold_id,
+            "book": book_summary,
+            "queue_position": position,
+            "estimated_wait_days": wait_days,
+            "duplicate": False,
+            "message": (
+                "The book is lent out; you joined the queue. "
+                "You will be told when it is your turn."
+            ),
+        }
+
+    except Exception as error:
+
+        if connection is not None:
+
+            connection.rollback()
+
+        return safe_error_result(
+            "The request could not be queued.",
+            error,
+            "DatabaseError",
+        )
+
+    finally:
+
+        if connection is not None:
+
+            connection.close()
+
+
+def get_my_holds(user_id):
+    """Active holds and purchase suggestions for one reader."""
+
+    validation = validate_authenticated_user(
+        user_id
+    )
+
+    if not validation["success"]:
+
+        return validation
+
+    user_id = validation["user_id"]
+
+    connection = None
+
+    try:
+
+        connection = get_connection()
+
+        cursor = connection.cursor()
+
+        rows = cursor.execute(
+            """
+            SELECT
+                id,
+                book_id,
+                book_title,
+                kind,
+                status,
+                created_at,
+                ready_at
+
+            FROM holds
+
+            WHERE user_id = ?
+            AND status IN ('waiting', 'ready')
+
+            ORDER BY id DESC
+            """,
+            (
+                user_id,
+            )
+        ).fetchall()
+
+        holds = []
+
+        for row in rows:
+
+            entry = {
+                "hold_id": row["id"],
+                "title": row["book_title"],
+                "kind": row["kind"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "ready_at": row["ready_at"],
+            }
+
+            if row["book_id"] is not None:
+
+                entry["book_id"] = row["book_id"]
+
+                entry["queue_position"] = _queue_position(
+                    cursor,
+                    row["book_id"],
+                    row["id"],
+                )
+
+            holds.append(
+                entry
+            )
+
+        return holds
+
+    except Exception as error:
+
+        return safe_error_result(
+            "Your queue could not be retrieved.",
+            error,
+            "DatabaseError",
+        )
+
+    finally:
+
+        if connection is not None:
+
+            connection.close()
+
+
+def cancel_hold(user_id, hold_id):
+    """Withdraw one of the authenticated reader's own requests."""
+
+    validation = validate_authenticated_user(
+        user_id
+    )
+
+    if not validation["success"]:
+
+        return validation
+
+    user_id = validation["user_id"]
+
+    try:
+
+        hold_id = int(
+            hold_id
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+
+        return {
+            "success": False,
+            "error_type": "ValidationError",
+            "message": "Hold ID must be a valid number.",
+        }
+
+    connection = None
+
+    try:
+
+        connection = get_connection()
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            UPDATE holds
+
+            SET status = 'cancelled'
+
+            WHERE id = ?
+            AND user_id = ?
+            AND status IN ('waiting', 'ready')
+            """,
+            (
+                hold_id,
+                user_id,
+            )
+        )
+
+        if cursor.rowcount != 1:
+
+            connection.rollback()
+
+            return {
+                "success": False,
+                "error_type": "BusinessRuleError",
+                "message": (
+                    "No active request of yours matches that ID."
+                ),
+            }
+
+        connection.commit()
+
+        return {
+            "success": True,
+            "hold_id": hold_id,
+            "message": "The request was withdrawn.",
+        }
+
+    except Exception as error:
+
+        if connection is not None:
+
+            connection.rollback()
+
+        return safe_error_result(
+            "The request could not be withdrawn.",
+            error,
+            "DatabaseError",
         )
 
     finally:
@@ -2529,7 +3589,12 @@ def list_available_books():
             WHERE available = 1
 
             ORDER BY id
-            """
+
+            LIMIT ?
+            """,
+            (
+                AVAILABLE_RESULT_LIMIT,
+            )
         )
 
         rows = cursor.fetchall()

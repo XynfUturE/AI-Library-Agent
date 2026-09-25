@@ -1,0 +1,7 @@
+# Optional: expose the library tools to MCP clients.
+#   pip install -r requirements.txt -r requirements-mcp.txt
+#
+# Pulls in ~10 extra packages (jsonschema, opentelemetry, ...), which is
+# why it is kept out of requirements.txt: the web app and CLI do not
+# need any of it.
+mcp==2.2.0

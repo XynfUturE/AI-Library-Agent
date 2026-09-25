@@ -1,0 +1,19 @@
+# Render blueprint: builds the Dockerfile and runs one web service.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# The free plan has no persistent disk, so database/library.db is
+# rebuilt from the seed data on every deploy. Add a disk (paid) and
+# point LIBRARY_DB_PATH at it if the data must survive deploys.
+services:
+  - type: web
+    name: ai-library-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: ENABLE_DEMO_LOGIN
+        value: "1"
+      - key: CHAT_RATE_LIMIT_PER_MINUTE
+        value: "20"

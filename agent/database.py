@@ -17,9 +17,15 @@ DATABASE_DIR = os.path.join(
     "database"
 )
 
-DATABASE_PATH = os.path.join(
-    DATABASE_DIR,
-    "library.db"
+# LIBRARY_DB_PATH lets tests and deployments point the app at a
+# different SQLite file without touching the source tree.
+DATABASE_PATH = (
+    os.getenv("LIBRARY_DB_PATH")
+    or
+    os.path.join(
+        DATABASE_DIR,
+        "library.db"
+    )
 )
 
 
@@ -50,6 +56,17 @@ def get_connection():
     # Enable foreign-key enforcement.
     connection.execute(
         "PRAGMA foreign_keys = ON"
+    )
+
+    # WAL keeps readers from blocking on the writer, which matters
+    # because the web layer runs synchronous routes in a thread pool
+    # while an agent turn may be holding a write transaction.
+    connection.execute(
+        "PRAGMA journal_mode = WAL"
+    )
+
+    connection.execute(
+        "PRAGMA busy_timeout = 5000"
     )
 
     return connection
@@ -287,6 +304,9 @@ def create_borrow_records_table(cursor):
 
             fine_paid_at TIMESTAMP NULL,
 
+            renewals INTEGER
+                NOT NULL DEFAULT 0,
+
             FOREIGN KEY (
                 user_id
             )
@@ -296,6 +316,50 @@ def create_borrow_records_table(cursor):
         """
     )
 
+
+# ============================================================
+# CREATE HOLDS TABLE
+# ============================================================
+
+def create_holds_table(cursor):
+    """
+    Create the demand queue shared by holds and purchase suggestions.
+
+    A hold points at a book the library owns but has lent out. A
+    suggestion carries no book_id: the reader asked for something the
+    library does not have yet.
+    """
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS holds (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            user_id INTEGER NOT NULL,
+
+            book_id INTEGER NULL,
+
+            book_title TEXT NOT NULL,
+
+            kind TEXT NOT NULL,
+
+            status TEXT NOT NULL DEFAULT 'waiting',
+
+            created_at TIMESTAMP
+                DEFAULT (datetime('now', 'localtime')),
+
+            ready_at TIMESTAMP NULL,
+
+            FOREIGN KEY (user_id)
+                REFERENCES users(id),
+
+            FOREIGN KEY (book_id)
+                REFERENCES books(id)
+
+        )
+        """
+    )
 
 # ============================================================
 # MIGRATE BORROW RECORDS
@@ -349,6 +413,13 @@ def migrate_borrow_records(cursor):
         "borrow_records",
         "fine_paid_at",
         "TIMESTAMP NULL"
+    )
+
+    ensure_column(
+        cursor,
+        "borrow_records",
+        "renewals",
+        "INTEGER NOT NULL DEFAULT 0"
     )
 
 
@@ -482,10 +553,53 @@ def create_indexes(cursor):
         """
     )
 
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS
+        idx_holds_book_status
+        ON holds(book_id, status)
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS
+        idx_holds_user_status
+        ON holds(user_id, status)
+        """
+    )
+
 
 # ============================================================
 # CREATE DEFAULT DEMO USER
 # ============================================================
+
+def reconcile_availability(cursor):
+    """
+    Make books.available agree with borrow_records.
+
+    The flag is a cache of "no active loan". Older databases can
+    contain a book that is still borrowed but marked available, so
+    the cached value is repaired on every startup. A book that staff
+    deliberately took off the shelf (available = 0, no loan) is left
+    untouched.
+    """
+
+    cursor.execute(
+        """
+        UPDATE books
+
+        SET available = 0
+
+        WHERE available = 1
+        AND id IN (
+            SELECT book_id
+            FROM borrow_records
+            WHERE returned_at IS NULL
+        )
+        """
+    )
+
 
 def create_demo_user(cursor):
     """
@@ -969,6 +1083,10 @@ def initialize_database():
             cursor
         )
 
+        create_holds_table(
+            cursor
+        )
+
         # ----------------------------------------------------
         # Migrate old tables & add catalog columns
         # ----------------------------------------------------
@@ -986,6 +1104,14 @@ def initialize_database():
         # ----------------------------------------------------
 
         create_indexes(
+            cursor
+        )
+
+        # ----------------------------------------------------
+        # Repair cached availability
+        # ----------------------------------------------------
+
+        reconcile_availability(
             cursor
         )
 

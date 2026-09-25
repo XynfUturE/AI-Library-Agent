@@ -1078,6 +1078,42 @@ def update_book(
             )
 
         # ------------------------------------------------
+        # Availability invariant
+        # ------------------------------------------------
+
+        # books.available is a cached copy of "no active loan". Flipping
+        # it back to 1 while the book is still out would make the
+        # catalog offer a book that is not on the shelf.
+        if (
+            "available" in provided
+            and
+            cleaned.get("available") == 1
+        ):
+
+            cursor.execute(
+                """
+                SELECT id
+
+                FROM borrow_records
+
+                WHERE book_id = ?
+                AND returned_at IS NULL
+
+                LIMIT 1
+                """,
+                (
+                    book_id,
+                )
+            )
+
+            if cursor.fetchone() is not None:
+
+                return validation_error(
+                    "This book is currently borrowed, "
+                    "so it cannot be marked as available."
+                )
+
+        # ------------------------------------------------
         # Category handling
         # ------------------------------------------------
 

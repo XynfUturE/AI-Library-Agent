@@ -29,7 +29,11 @@ USER appuser
 EXPOSE 8000
 
 # Zeabur / other PaaS inject the PORT env var; fall back to 8000 locally.
-CMD ["sh", "-c", "uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+#
+# --workers 1 is deliberate: sessions and their LibraryAgent instances
+# live in this process, so a second worker would make logins fail at
+# random. Scaling out requires a shared session store first.
+CMD ["sh", "-c", "uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
 
 # Lightweight liveness probe using Python's stdlib (no curl in slim).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
