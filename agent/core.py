@@ -31,7 +31,7 @@ load_dotenv()
 # CONFIGURATION
 # ============================================================
 
-MODEL_NAME = "deepseek-v4-flash"
+MODEL_NAME = "deepseek-flash"
 
 MAX_STEPS = 8
 
@@ -55,6 +55,10 @@ MAX_CONVERSATION_USER_TURNS_CAP = 20
 # The mode has to stay constant for a whole turn: the API rejects a
 # turn that replays an assistant message produced without reasoning
 # while reasoning is switched on.
+#
+# Reasoning effort is deliberately not set: the API already uses
+# "high" for ordinary requests, and maps "low"/"medium" to "high"
+# anyway, so asking for less would not save anything.
 THINKING_MODE = "enabled"
 
 MAX_ARG_PREVIEW_LENGTH = 60
@@ -1063,12 +1067,26 @@ class LibraryAgent:
         """
         Convert an SDK assistant message into the
         message format required for the next API call.
+
+        The reasoning content is replayed too: the API
+        documents it as required back for any turn that used
+        a tool, even though it tolerates its absence today.
         """
 
         result = {
             "role": "assistant",
             "content": message.content or "",
         }
+
+        reasoning = getattr(
+            message,
+            "reasoning_content",
+            None,
+        )
+
+        if reasoning:
+
+            result["reasoning_content"] = reasoning
 
         if message.tool_calls:
 
