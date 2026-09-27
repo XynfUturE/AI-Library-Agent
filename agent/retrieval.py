@@ -113,7 +113,7 @@ def _features(text):
     return features
 
 
-def _local_vector(text):
+def local_vector(text):
     """
     Build one normalised vector without any external dependency.
 
@@ -179,7 +179,7 @@ def embed_texts(texts):
     if embedder_name() == LOCAL_EMBEDDER:
 
         return [
-            _local_vector(text)
+            local_vector(text)
             for text in texts
         ]
 
