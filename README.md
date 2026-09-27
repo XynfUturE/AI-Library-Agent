@@ -175,11 +175,12 @@ A book cannot be borrowed until its availability has been verified.
 
 ## 5. AI Tools
 
-The system currently provides 16 tools to the AI agent:
+The system currently provides 17 tools to the AI agent:
 
 | Tool                         | Purpose                                           |
 | ---------------------------- | ------------------------------------------------- |
 | `search_books`               | Search books by title keyword                     |
+| `search_books_semantic`      | Search books by meaning, for topic-style requests |
 | `check_book_availability`    | Check whether a book is available                 |
 | `borrow_book`                | Borrow an available book                          |
 | `return_book`                | Return a book belonging to the authenticated user |
@@ -195,6 +196,17 @@ The system currently provides 16 tools to the AI agent:
 | `pay_fine`                   | Pay an unpaid final fine                          |
 | `get_borrow_history`         | Retrieve the current user's borrowing history     |
 | `list_available_books`       | Retrieve currently available books                |
+
+`search_books_semantic` is the retrieval (RAG) tool. Every book is
+embedded once and stored in the `book_embeddings` table, and a query is
+answered by cosine similarity against those vectors, so "a book about
+how sleep affects memory" finds *Why We Sleep* without sharing a single
+title word. By default the embedder is a dependency-free local vector
+(hashed words plus character n-grams), which keeps retrieval working
+offline and in tests; setting `EMBEDDING_API_KEY` and `EMBEDDING_MODEL`
+switches it to any OpenAI-compatible embeddings endpoint. The index
+records which embedder produced it and rebuilds itself when the
+catalogue or the embedder changes. See `agent/retrieval.py`.
 
 The tool schemas and the system prompt are defined once in `agent/core.py`, the agent loop lives in `LibraryAgent` (also `agent/core.py`), and the actual business logic is implemented in `agent/tools.py`. The web UI and the terminal CLI both drive the same `LibraryAgent`, so there is only one loop to maintain.
 

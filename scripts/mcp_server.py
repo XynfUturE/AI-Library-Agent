@@ -58,6 +58,12 @@ def build_server(user_id: int) -> MCPServer:
         return library_tools.search_books(keyword)
 
     @server.tool()
+    def search_books_semantic(query: str) -> list:
+        """Search books by meaning, for topic-style requests."""
+
+        return library_tools.search_books_semantic(query)
+
+    @server.tool()
     def check_book_availability(book_id: int) -> dict | list:
         """Check whether a book can be borrowed right now."""
 

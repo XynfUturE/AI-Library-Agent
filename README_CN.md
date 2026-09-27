@@ -247,11 +247,12 @@ no
 
 ## 6. AI Tools
 
-当前 Agent 一共提供 16 个 Tools：
+当前 Agent 一共提供 17 个 Tools：
 
 | Tool                         | 功能          |
 | ---------------------------- | ----------- |
 | `search_books`               | 根据图书标题关键字搜索 |
+| `search_books_semantic`      | 按语义检索图书，适合"想找某一类书"的提问 |
 | `check_book_availability`    | 检查指定图书是否可借  |
 | `borrow_book`                | 借阅图书        |
 | `return_book`                | 归还当前用户借阅的图书 |
@@ -267,6 +268,14 @@ no
 | `pay_fine`                   | 支付未支付的最终罚款  |
 | `get_borrow_history`         | 查看借阅历史      |
 | `list_available_books`       | 查看所有当前可借图书  |
+
+`search_books_semantic` 是检索层（RAG）：每本书预先算好向量存入
+`book_embeddings` 表，提问时用余弦相似度排序，所以"讲睡眠和记忆的书"
+能命中 *Why We Sleep*，即使标题里一个词都不重合。默认使用零依赖的本地
+向量（词 + 字符 n-gram 哈希），离线与测试环境都能跑；配置
+`EMBEDDING_API_KEY` 与 `EMBEDDING_MODEL` 后会切换到任意 OpenAI 兼容的
+embedding 接口。索引里记录了生成它的 embedder，书目或 embedder 变化时
+自动重建。实现见 `agent/retrieval.py`。
 
 Tools 的定义（schema）与系统提示词位于：
 

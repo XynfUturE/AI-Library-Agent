@@ -6,6 +6,7 @@ from openai import OpenAI
 
 from agent.tools import (
     search_books,
+    search_books_semantic,
     check_book_availability,
     borrow_book,
     return_book,
@@ -83,6 +84,8 @@ MAX_ARG_PREVIEW_LENGTH = 60
 TOOL_PROGRESS_MESSAGES = {
     "search_books":
         "Searching for the book...",
+    "search_books_semantic":
+        "Looking for books on that topic...",
     "check_book_availability":
         "Checking book availability...",
     "borrow_book":
@@ -368,6 +371,21 @@ The application supplies the authenticated user's ID.
 Never ask the user for a user ID.
 
 --------------------------------------------------
+SEARCHING
+--------------------------------------------------
+
+Use search_books when the user names a title, an author, or a
+specific word.
+
+Use search_books_semantic when the user describes what they
+want instead of naming it, for example "something about
+writing better code", "a book on how sleep affects memory",
+or whenever search_books returned nothing.
+
+A semantic result is a close match, not an exact title match.
+Say so, and confirm the title with the user before borrowing.
+
+--------------------------------------------------
 BORROWING
 --------------------------------------------------
 
@@ -406,10 +424,13 @@ A recommendation does not automatically mean borrowing.
 
 For recommendations:
 
-1. Use list_available_books.
-2. Only recommend real books returned by the tool.
-3. Do not invent book information.
-4. Do not automatically borrow the recommended book.
+1. Use search_books_semantic when the user asks for a topic
+   or a kind of book.
+2. Use list_available_books when the user just wants to know
+   what is on the shelf.
+3. Only recommend real books returned by the tool.
+4. Do not invent book information.
+5. Do not automatically borrow the recommended book.
 
 --------------------------------------------------
 RETURNING
@@ -554,6 +575,40 @@ TOOL_DEFINITIONS = [
                 },
                 "required": [
                     "keyword"
+                ],
+            },
+        },
+    },
+
+    # --------------------------------------------------------
+    # SEARCH BOOKS BY MEANING (RAG)
+    # --------------------------------------------------------
+
+    {
+        "type": "function",
+        "function": {
+            "name": "search_books_semantic",
+            "description": (
+                "Search the catalogue by meaning rather than exact "
+                "keywords. Use this when the reader describes what "
+                "they want (for example 'a book about writing better "
+                "code' or 'something on how sleep affects memory') or "
+                "when a keyword search returned nothing. Returns the "
+                "closest books with a similarity score."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "What the reader is looking for, in "
+                            "natural language."
+                        ),
+                    }
+                },
+                "required": [
+                    "query"
                 ],
             },
         },
@@ -1187,6 +1242,16 @@ class LibraryAgent:
 
                 return search_books(
                     arguments["keyword"]
+                )
+
+            # ------------------------------------------------
+            # SEARCH BY MEANING (RAG)
+            # ------------------------------------------------
+
+            if function_name == "search_books_semantic":
+
+                return search_books_semantic(
+                    arguments["query"]
                 )
 
             # ------------------------------------------------

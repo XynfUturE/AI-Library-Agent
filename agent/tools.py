@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 
 from agent.database import get_connection
 
+from agent.retrieval import semantic_search
+
 
 # ============================================================
 # LIBRARY POLICIES
@@ -1342,6 +1344,52 @@ def return_book(
         if connection is not None:
 
             connection.close()
+
+
+# ============================================================
+# SEMANTIC SEARCH (RAG)
+# ============================================================
+
+def search_books_semantic(query):
+    """
+    Search the catalogue by meaning instead of exact keywords.
+
+    The retriever is the vector index built by agent.retrieval: the
+    query and every book are embedded, and the closest books are
+    returned with a similarity score.
+    """
+
+    if not isinstance(
+        query,
+        str
+    ):
+
+        return []
+
+    query = query.strip()
+
+    if not query:
+
+        return []
+
+    try:
+
+        return semantic_search(
+            query,
+            limit=SEARCH_RESULT_LIMIT
+        )
+
+    except Exception as error:
+
+        return safe_error_result(
+
+            "The catalogue could not be searched by meaning.",
+
+            error,
+
+            "DatabaseError"
+
+        )
 
 
 # ============================================================

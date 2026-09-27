@@ -361,6 +361,54 @@ def create_holds_table(cursor):
         """
     )
 
+
+# ============================================================
+# CREATE RETRIEVAL TABLES
+# ============================================================
+
+def create_retrieval_tables(cursor):
+    """
+    Create the tables used by the retrieval (RAG) layer.
+
+    book_embeddings holds one vector per book; rag_meta records which
+    embedder built the index so a change of embedder rebuilds it instead
+    of comparing vectors from two different spaces.
+    """
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS book_embeddings (
+
+            book_id INTEGER PRIMARY KEY,
+
+            embedder TEXT NOT NULL,
+
+            vector TEXT NOT NULL,
+
+            updated_at TIMESTAMP
+                DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY (book_id)
+                REFERENCES books(id)
+                ON DELETE CASCADE
+
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS rag_meta (
+
+            key TEXT PRIMARY KEY,
+
+            value TEXT NOT NULL
+
+        )
+        """
+    )
+
+
 # ============================================================
 # MIGRATE BORROW RECORDS
 # ============================================================
@@ -1084,6 +1132,10 @@ def initialize_database():
         )
 
         create_holds_table(
+            cursor
+        )
+
+        create_retrieval_tables(
             cursor
         )
 
