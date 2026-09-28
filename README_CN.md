@@ -43,13 +43,11 @@ docker build -t ai-library-agent . && docker run -p 8000:8000 -e DEEPSEEK_API_KE
 
 ---
 
+## 1. 项目简介
+
 本项目将传统的 **Python + SQLite Library Management System** 与 AI Agent 结合，使用户可以通过自然语言完成图书搜索、借阅、归还、续借、预约、荐购、逾期与罚款处理。
 
 AI Agent 不直接修改数据库，而是根据用户请求选择预先定义的 Python Tools，由后端业务逻辑执行实际操作，再将真实的数据库结果返回给 Agent。
-
----
-
-## 1. 项目简介
 
 AI Library Agent 的主要目标不是简单地制作一个聊天机器人，而是探索如何让 LLM 与真实的软件系统进行交互。
 
@@ -118,7 +116,7 @@ Borrow Database Systems
 
 ---
 
-### 2.2 Fine Management
+### 2.2 罚金管理
 
 系统支持完整的罚款处理流程：
 
@@ -201,7 +199,7 @@ Agent 只能通过系统提供的 Tools 与数据库交互。
 
 ---
 
-## 4. Borrowing Decision Workflow
+## 4. 借阅决策流程
 
 当用户通过书名借书时，Agent 遵循明确的决策流程。
 
@@ -247,7 +245,7 @@ Agent 不允许自己创造：
 
 ---
 
-## 5. Alternative Book Workflow
+## 5. 无馆藏图书的处理流程
 
 当用户想借的图书不可用时，Agent 不会自动替换图书，而是先征求用户意见。
 
@@ -286,7 +284,7 @@ no
 
 ---
 
-## 6. AI Tools
+## 6. AI 工具
 
 当前 Agent 一共提供 17 个 Tools：
 
@@ -332,7 +330,7 @@ agent/tools.py
 
 ---
 
-## 7. Agent State
+## 7. Agent 状态
 
 每个会话持有一个 `LibraryAgent` 实例，Agent 状态只包含：
 
@@ -360,7 +358,7 @@ borrow_book
 
 ---
 
-## 8. Authentication
+## 8. 认证
 
 系统包含完整的用户认证功能：
 
@@ -390,7 +388,7 @@ user_id
 
 ---
 
-## 9. User Data Isolation
+## 9. 用户数据隔离
 
 数据隔离是本项目的重要设计之一。
 
@@ -455,7 +453,7 @@ User B 也无法支付 User A 的罚款。
 
 ---
 
-## 10. Borrowing History
+## 10. 借阅历史
 
 系统不会让 LLM 自己生成 Markdown Table。
 
@@ -487,7 +485,7 @@ Wide Terminal
 
 ---
 
-## 11. Fine System
+## 11. 罚金系统
 
 罚款按照 overdue calendar days 计算：
 
@@ -531,7 +529,7 @@ fine_paid_at
 
 ---
 
-## 12. Payment Workflow
+## 12. 缴费流程
 
 罚款支付必须满足：
 
@@ -569,7 +567,7 @@ Pay Again
 
 ---
 
-## 13. Book Recommendation
+## 13. 图书推荐
 
 Recommendation 与 Borrowing 是两个不同的任务。
 
@@ -613,7 +611,7 @@ Agent 会从当前可用图书中寻找最匹配的真实书籍，而不会虚�
 
 ---
 
-## 14. Conversation Context
+## 14. 会话上下文
 
 Agent 可以理解部分上下文引用，例如：
 
@@ -661,7 +659,7 @@ stdout 上的 `[usage]` 行会按步打印 `prompt` / `cache_hit` / `cache_miss`
 
 ---
 
-## 15. Error Handling
+## 15. 错误处理
 
 项目对错误进行了分层处理。
 
@@ -697,7 +695,7 @@ DEBUG_MODE = False
 
 ---
 
-## 16. Database Design
+## 16. 数据库设计
 
 系统使用 SQLite 作为持久化数据库。
 
@@ -776,9 +774,14 @@ DEBUG_MODE = False
 * status：`waiting` → `ready`（归还后被留给他）→ `cancelled`
 * 创建时间、变为可取的时间
 
+### `book_embeddings` 与 `rag_meta`
+
+语义检索的索引：每本书存一条向量；`rag_meta` 记录生成索引所用的 embedder 与
+当时的书目状态，任一方变化时索引自动重建。
+
 ---
 
-## 17. Database Transaction Safety
+## 17. 数据库事务安全
 
 数据库写操作使用：
 
@@ -817,7 +820,7 @@ BEGIN IMMEDIATE
 
 ---
 
-## 18. Authentication and Security
+## 18. 认证与安全
 
 项目目前采用以下安全措施：
 
@@ -830,6 +833,10 @@ BEGIN IMMEDIATE
 * Cross-user operations 在后端拒绝
 * Database operations 使用 transactions
 * Internal errors 不直接显示给普通用户
+* 聊天请求按会话限流（计数器在内存中，因此限流粒度是单个 worker）
+* 会话令牌随机生成，存在 `sessionStorage` 并用 `X-Session-ID` 请求头发送；不依赖 Cookie，因此没有"浏览器自动带凭证"式的 CSRF 面
+* Demo 登录按设计免密码，且默认开启；正式部署应设置 `ENABLE_DEMO_LOGIN=0`
+* 会话只存在进程内存中，所以容器固定单 worker（`--workers 1`）；要横向扩容必须先换共享会话存储
 
 实际 API Key 不应该写入：
 
@@ -845,7 +852,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 
 ---
 
-## 19. Technology Stack
+## 19. 技术栈
 
 | 技术            | 用途                                  |
 | ------------- | ------------------------------------- |
@@ -865,7 +872,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 
 ---
 
-## 20. Project Structure
+## 20. 项目结构
 
 ```text
 .
@@ -889,6 +896,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 │   ├── core.py             # 唯一的 Agent 循环 + Tool Schema
 │   ├── database.py         # SQLite 表结构、迁移 + 种子数据
 │   ├── isbn.py             # ISBN 查书目（OpenLibrary）
+│   ├── retrieval.py        # 图书向量索引与语义检索
 │   └── tools.py            # 图书馆业务逻辑
 │
 ├── scripts/
@@ -914,6 +922,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 │   ├── test_loans.py
 │   ├── test_mcp_server.py
 │   ├── test_reminders.py
+│   ├── test_retrieval.py
 │   └── test_web_api.py
 │
 ├── .github/workflows/ci.yml
@@ -941,7 +950,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 
 ---
 
-## 21. Installation
+## 21. 安装
 
 ### 创建 Virtual Environment
 
@@ -965,7 +974,7 @@ python -m pip install -r requirements.txt
 
 ---
 
-## 22. Environment Configuration
+## 22. 环境变量配置
 
 创建本地：
 
@@ -1017,7 +1026,7 @@ SMTP_TLS=1
 
 ---
 
-## 23. Running the Application
+## 23. 运行方式
 
 ### 方式 A：Web 界面（推荐）
 
@@ -1078,6 +1087,15 @@ python main.py
 
 CLI 与 Web 共用同一个 `LibraryAgent`：输入的自然语言会带上当前登录用户身份交给 Agent 处理。
 
+### 方式 C：Docker（容器化）
+
+```powershell
+docker build -t ai-library-agent .
+docker run -p 8000:8000 -e DEEPSEEK_API_KEY=你的key ai-library-agent
+```
+
+镜像以非 root 用户运行，并内置健康检查。任何注入 `PORT` 的容器平台（Docker、Zeabur、Render 等）都能直接用，入口脚本以 `${PORT:-8000}` 兜底。
+
 ### 方式 D：MCP 服务端（可选）
 
 同一批工具也可以直接暴露给任意 MCP 客户端（Codex、Claude Desktop 等），不经过自带的聊天界面：
@@ -1106,9 +1124,11 @@ Zeabur：新建项目 → 从 Git 部署（Dockerfile 已处理 $PORT）
 
 ---
 
-## 24. Demo Environment
+## 24. Demo 环境
 
 项目包含一个本地 Demo Account，方便快速体验系统。
+
+点 **Continue as Demo** 即以该账号登录；它是 `admin` 角色，因此馆员视图（流通报表、图书编目、CSV 导入）在同一次登录里就能演示。
 
 最终 Demo 数据库保持少量真实数据，以便直接展示：
 
@@ -1122,7 +1142,7 @@ Zeabur：新建项目 → 从 Git 部署（Dockerfile 已处理 $PORT）
 
 ---
 
-## 25. Testing
+## 25. 测试
 
 目前项目已经完成多个层面的测试。
 
@@ -1148,6 +1168,7 @@ python -m pytest
 | `test_analytics.py`  | 概览计数、热门图书、月度借阅分桶                        |
 | `test_due_reminders.py` | 提醒摘要、SMTP 发送、Webhook POST、失败上报           |
 | `test_holds.py`      | 预约排队位置、归还是提升队列、荐购、撤回               |
+| `test_retrieval.py`  | 本地向量、索引构建与刷新、仅凭语义的排序                |
 
 GitHub Actions 会在每次 push 与 pull request 上运行同一命令（`.github/workflows/ci.yml`）。
 
@@ -1164,7 +1185,7 @@ python scripts/capture_screenshots.py
 
 ---
 
-### Functional Testing
+### 功能测试
 
 测试：
 
@@ -1181,7 +1202,7 @@ python scripts/capture_screenshots.py
 
 ---
 
-### AI Agent Testing
+### AI Agent 测试
 
 测试：
 
@@ -1196,7 +1217,7 @@ python scripts/capture_screenshots.py
 
 ---
 
-### Authentication Testing
+### 认证测试
 
 测试：
 
@@ -1208,7 +1229,7 @@ python scripts/capture_screenshots.py
 
 ---
 
-### Data Isolation Testing
+### 数据隔离测试
 
 测试：
 
@@ -1220,7 +1241,7 @@ python scripts/capture_screenshots.py
 
 ---
 
-### Database Integrity Testing
+### 数据库完整性测试
 
 测试：
 
@@ -1231,49 +1252,41 @@ python scripts/capture_screenshots.py
 
 ---
 
-## 26. Git Version Control
+## 26. Git 版本控制
 
-项目使用 Git 管理版本，`main` 分支始终对应当前可用的稳定状态。提交以聚焦、可自描述的方式组织，具体演进可查看仓库提交历史。
+项目使用 Git 管理版本，默认分支 `master` 始终对应当前可用的稳定状态。提交以聚焦、可自描述的方式组织，具体演进可查看仓库提交历史。
 
 ---
 
-## 27. Future Improvements
+## 27. 后续改进方向
 
-这个项目目前已经完成了第一版完整 Agent Workflow，但仍然具有较大的扩展空间。
-
-未来可以继续加入：
+已经落地的不再列为"未来"：语义检索、预约与荐购、馆员统计接口、离线测试套件、CI 与 Render 蓝图。真正还缺的是：
 
 ### AI / Agent
 
-* Semantic Book Search
-* RAG
-* Long-term Memory
-* Better Recommendation Ranking
-* Multi-Agent Architecture
-* Agent Planning
-* Agent Tracing / Observability
+* 跨会话的长期记忆
+* 更精细的推荐排序
+* 回答质量评测（当前只评工具选择，不评回答本身对不对）
+* 多 Agent 协作与 Agent 规划
+* Agent Tracing / 可观测性
 
-### Library System
+### 图书馆业务
 
-* Reservation System
-* Waiting List
-* Borrowing Limits
-* Automatic Fine Notifications
-* Admin Dashboard
+* 借阅上限与读者分级
+* 罚金自动通知与催缴
+* 馆员后台的批量操作
 
-### Software Architecture
+### 软件架构
 
-* Token-level Streaming（Web 界面中最终回答的逐字流式输出）
-* Server-side Session Persistence（当前会话保存在内存中）
-* Cloud Database
-* Automated Test Suite
-* Logging System
-* Monitoring
-* Deployment Pipeline
+* Web 界面中最终回答的逐字流式输出（当前按步骤事件流式推送，回答整体返回）
+* 服务端会话与对话持久化（当前会话在进程内存中，容器单 worker）
+* 共享数据库（替换容器本地 SQLite 文件）
+* 认证加固（JWT/OAuth、CSRF、仅 HTTPS）
+* 结构化日志与监控告警
 
 ---
 
-## 28. Current Project Goal
+## 28. 项目目标
 
 AI Library Agent 的核心目标是探索：
 

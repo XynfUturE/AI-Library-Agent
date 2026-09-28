@@ -45,13 +45,7 @@ To deploy your own: `render.yaml` is a one-click Render blueprint, and the Docke
 
 ## 1. Project Overview
 
-AI Library Agent combines a traditional Python + SQLite library system with an agent that understands natural-language requests, selects the right tool, reads and writes real database data, and keeps the conversation bounded in cost.
-
----
-
-## 1. Project Overview
-
-AI Library Agent is a Python-based intelligent library assistant designed to demonstrate how an AI agent can interact with real application logic and persistent database data.
+AI Library Agent combines a traditional Python + SQLite library system with an agent that understands natural-language requests, selects the right tool, reads and writes real database data, and keeps the conversation bounded in cost. It exists to demonstrate how an LLM can drive real application logic and persistent data instead of only a chat prompt.
 
 Instead of relying only on fixed menu commands, users can communicate with the system using natural language, for example:
 
@@ -489,6 +483,12 @@ The demand queue, shared by holds and purchase suggestions:
 * status: `waiting` -> `ready` (a returned copy is held for that reader) -> `cancelled`
 * created time and the time it became ready
 
+### `book_embeddings` and `rag_meta`
+
+The semantic search index: one vector per book, plus a metadata row recording
+which embedder and which catalogue state produced the index, so the index
+rebuilds itself whenever either changes.
+
 ---
 
 ## 13. Transaction Safety
@@ -555,6 +555,7 @@ Some sensitive operations also use immediate transactions to reduce race-conditi
 │   ├── core.py             # Single agent loop + tool schemas
 │   ├── database.py         # SQLite schema, migrations + seed data
 │   ├── isbn.py             # ISBN -> metadata (OpenLibrary)
+│   ├── retrieval.py        # Book embeddings + semantic search
 │   └── tools.py            # Library business logic
 │
 ├── scripts/
@@ -580,6 +581,7 @@ Some sensitive operations also use immediate transactions to reduce race-conditi
 │   ├── test_loans.py
 │   ├── test_mcp_server.py
 │   ├── test_reminders.py
+│   ├── test_retrieval.py
 │   └── test_web_api.py
 │
 ├── .github/workflows/ci.yml
@@ -789,6 +791,8 @@ Due-date reminders and backups are not part of the web process. Run `scripts/due
 
 The project includes a local demo account for development and demonstration.
 
+Press **Continue as Demo** to sign in as that account. It holds the `admin` role, so the librarian views (circulation reports, cataloguing, CSV import) are reachable from the same login.
+
 The final local demo database is intentionally kept separate from the development test data.
 
 The demo environment contains a small amount of realistic borrowing data so that the AI can demonstrate:
@@ -825,6 +829,7 @@ python -m pytest
 | `test_analytics.py`      | Overview counters, top books, monthly buckets                        |
 | `test_due_reminders.py`  | Digest building, SMTP delivery, webhook POST, failure reporting      |
 | `test_holds.py`          | Hold queue positions, promotion on return, suggestions, withdrawal   |
+| `test_retrieval.py`      | Local vectors, index build/refresh, meaning-only ranking             |
 
 GitHub Actions runs the same command on every push and pull request (`.github/workflows/ci.yml`).
 
@@ -903,30 +908,33 @@ The project follows several basic security practices:
 * Cross-user operations are rejected by backend logic.
 * Database transactions use rollback handling.
 * Internal errors are not exposed to normal users.
+* Chat requests are rate limited per session (in-memory counters, so the limit is per worker).
+* Session tokens are random and sent in an `X-Session-ID` header from `sessionStorage`; no cookie is attached automatically, so there is no ambient-credential CSRF surface.
+* Demo login is password-free by design and enabled by default; set `ENABLE_DEMO_LOGIN=0` on a real deployment.
+* Sessions live in process memory, which is why the container runs a single worker (`--workers 1`); scaling out needs a shared session store first.
 
 ---
 
 ## 22. Version Control
 
-The project is tracked with Git. The `main` branch holds the current stable state, and changes are committed as focused, self-describing commits (see the repository history).
+The project is tracked with Git. The default branch (`master`) holds the current stable state, and changes are committed as focused, self-describing commits (see the repository history).
 
 ---
 
 ## 23. Future Improvements
 
-Possible future development directions include:
+Shipped already: semantic search, holds and purchase suggestions, the librarian
+reporting API, the offline test suite, CI and the Render blueprint. What is
+still genuinely missing:
 
-* Semantic book search
-* RAG-based book recommendations
-* Persistent long-term AI memory
-* More advanced recommendation ranking
-* Reservation and waiting-list systems
-* Admin dashboard
-* Multi-agent workflows
-* Token-level streaming of the final LLM answer in the web UI
-* Server-side session and conversation persistence (sessions are currently in-memory)
-* Cloud database deployment
+* Persistent long-term AI memory across sessions
+* Better recommendation ranking
+* Answer-quality evaluation — the current harness measures tool selection, not whether the reply itself is correct
+* Token-level streaming of the final LLM answer (the UI streams step events, then delivers the answer as one chunk)
+* Server-side session and conversation persistence (sessions are in process memory, single worker)
+* A shared database instead of a container-local SQLite file
 * Observability and agent tracing
+* Authentication hardening (JWT/OAuth, CSRF protection, HTTPS-only transport)
 
 ---
 
