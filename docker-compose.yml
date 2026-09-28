@@ -1,0 +1,52 @@
+# Local stack: the web app on :8000 and the MCP server on :8001.
+#
+#   DEEPSEEK_API_KEY=... docker compose up --build
+#
+# The MCP service is the same image built with INSTALL_MCP=1; it serves
+# the library tools over streamable HTTP at http://localhost:8001/mcp
+# for any MCP client. Both services share one SQLite volume, so the
+# agent and an MCP client see the same loans.
+
+services:
+  web:
+    build:
+      context: .
+    image: ai-library-agent
+    ports:
+      - "8000:8000"
+    environment:
+      # Compose reads the repository .env file, so the key is not
+      # repeated here. Chat fails without it; everything else works.
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      ENABLE_DEMO_LOGIN: "1"
+      # Per-turn trace: LLM tokens/latency and every tool call.
+      AGENT_TRACE_PATH: /app/database/agent-trace.jsonl
+    volumes:
+      - library-database:/app/database
+
+  mcp:
+    build:
+      context: .
+      args:
+        INSTALL_MCP: "1"
+    image: ai-library-agent-mcp
+    command:
+      - python
+      - scripts/mcp_server.py
+      - --transport
+      - streamable-http
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8001"
+      - --user-id
+      - "1"
+    ports:
+      - "8001:8001"
+    volumes:
+      - library-database:/app/database
+
+volumes:
+  # Named volume, not a bind mount: Docker keeps the ownership that the
+  # image set on /app/database, so the non-root user can write the DB.
+  library-database:

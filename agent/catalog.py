@@ -543,16 +543,149 @@ def get_catalog_categories():
 # CATALOG QUERY (EXTENDED)
 # ============================================================
 
-def query_catalog(
+def _catalog_filters(
+    cursor,
     keyword=None,
     category_id=None,
     availability=None,
 ):
     """
+    Build the WHERE clause shared by the catalogue queries.
+
+    Returns (where_clause, parameters, by_id), or None when the
+    filter can never match (an unknown category).
+    """
+
+    by_id, children_map = _category_maps(
+        cursor
+    )
+
+    conditions = []
+
+    parameters = []
+
+    # ------------------------------------------------
+    # Keyword (title / author / ISBN / publisher)
+    # ------------------------------------------------
+
+    keyword = _clean_text(
+        keyword
+    )
+
+    if keyword:
+
+        conditions.append(
+            """
+            (
+                title LIKE ?
+                OR author LIKE ?
+                OR isbn LIKE ?
+                OR publisher LIKE ?
+            )
+            """
+        )
+
+        wildcard = f"%{keyword}%"
+
+        parameters.extend(
+            [
+                wildcard,
+                wildcard,
+                wildcard,
+                wildcard,
+            ]
+        )
+
+    # ------------------------------------------------
+    # Category subtree
+    # ------------------------------------------------
+
+    if category_id is not None:
+
+        try:
+
+            category_id = int(
+                category_id
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            category_id = None
+
+    if category_id is not None:
+
+        if category_id in by_id:
+
+            matching_ids = _subtree_ids(
+                category_id,
+                by_id,
+                children_map,
+            )
+
+            placeholders = ",".join(
+                "?" * len(matching_ids)
+            )
+
+            conditions.append(
+                f"category_id IN ({placeholders})"
+            )
+
+            parameters.extend(
+                sorted(
+                    matching_ids
+                )
+            )
+
+        else:
+
+            # Unknown category: nothing can match.
+            return None
+
+    # ------------------------------------------------
+    # Availability
+    # ------------------------------------------------
+
+    if availability == "available":
+
+        conditions.append(
+            "available = 1"
+        )
+
+    elif availability == "loaned":
+
+        conditions.append(
+            "available = 0"
+        )
+
+    where_clause = (
+        "WHERE "
+        +
+        " AND ".join(conditions)
+    ) if conditions else ""
+
+    return (
+        where_clause,
+        parameters,
+        by_id,
+    )
+
+
+def query_catalog(
+    keyword=None,
+    category_id=None,
+    availability=None,
+    limit=None,
+    offset=None,
+):
+    """
     Query books with optional keyword, category subtree and
     availability filters.
 
-    category_id selects the category subtree when given.
+    category_id selects the category subtree when given. limit/offset
+    page the result in SQL; without a limit the whole list comes back.
     """
 
     connection = None
@@ -563,117 +696,20 @@ def query_catalog(
 
         cursor = connection.cursor()
 
-        by_id, children_map = _category_maps(
-            cursor
+        filters = _catalog_filters(
+            cursor,
+            keyword,
+            category_id,
+            availability,
         )
 
-        conditions = []
+        if filters is None:
 
-        parameters = []
+            return []
 
-        # ------------------------------------------------
-        # Keyword (title / author / ISBN / publisher)
-        # ------------------------------------------------
+        where_clause, parameters, by_id = filters
 
-        keyword = _clean_text(
-            keyword
-        )
-
-        if keyword:
-
-            conditions.append(
-                """
-                (
-                    title LIKE ?
-                    OR author LIKE ?
-                    OR isbn LIKE ?
-                    OR publisher LIKE ?
-                )
-                """
-            )
-
-            wildcard = f"%{keyword}%"
-
-            parameters.extend(
-                [
-                    wildcard,
-                    wildcard,
-                    wildcard,
-                    wildcard,
-                ]
-            )
-
-        # ------------------------------------------------
-        # Category subtree
-        # ------------------------------------------------
-
-        if category_id is not None:
-
-            try:
-
-                category_id = int(
-                    category_id
-                )
-
-            except (
-                TypeError,
-                ValueError,
-            ):
-
-                category_id = None
-
-        if category_id is not None:
-
-            if category_id in by_id:
-
-                matching_ids = _subtree_ids(
-                    category_id,
-                    by_id,
-                    children_map,
-                )
-
-                placeholders = ",".join(
-                    "?" * len(matching_ids)
-                )
-
-                conditions.append(
-                    f"category_id IN ({placeholders})"
-                )
-
-                parameters.extend(
-                    sorted(
-                        matching_ids
-                    )
-                )
-
-            else:
-
-                # Unknown category: nothing can match.
-                return []
-
-        # ------------------------------------------------
-        # Availability
-        # ------------------------------------------------
-
-        if availability == "available":
-
-            conditions.append(
-                "available = 1"
-            )
-
-        elif availability == "loaned":
-
-            conditions.append(
-                "available = 0"
-            )
-
-        where_clause = (
-            "WHERE "
-            +
-            " AND ".join(conditions)
-        ) if conditions else ""
-
-        cursor.execute(
+        statement = (
             """
             SELECT
                 id,
@@ -697,7 +733,22 @@ def query_catalog(
             ORDER BY
                 title COLLATE NOCASE ASC,
                 id ASC
-            """,
+            """
+        )
+
+        if limit is not None:
+
+            statement += """
+            LIMIT ? OFFSET ?
+            """
+
+            parameters = parameters + [
+                int(limit),
+                int(offset or 0),
+            ]
+
+        cursor.execute(
+            statement,
             parameters,
         )
 
@@ -718,6 +769,59 @@ def query_catalog(
             error,
             "DatabaseError",
         )
+
+    finally:
+
+        if connection is not None:
+
+            connection.close()
+
+
+def count_catalog(
+    keyword=None,
+    category_id=None,
+    availability=None,
+):
+    """
+    Count the rows query_catalog would return, ignoring paging.
+
+    Returns None when the count itself could not be run, so the API
+    can still serve the page it already fetched.
+    """
+
+    connection = None
+
+    try:
+
+        connection = get_connection()
+
+        cursor = connection.cursor()
+
+        filters = _catalog_filters(
+            cursor,
+            keyword,
+            category_id,
+            availability,
+        )
+
+        if filters is None:
+
+            return 0
+
+        where_clause, parameters, _ = filters
+
+        cursor.execute(
+            "SELECT COUNT(*) AS count FROM books "
+            +
+            where_clause,
+            parameters,
+        )
+
+        return cursor.fetchone()["count"]
+
+    except Exception:
+
+        return None
 
     finally:
 

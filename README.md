@@ -4,7 +4,7 @@ A conversational front desk for a library. Readers ask in plain language and the
 
 [![CI](https://github.com/XynfUturE/AI-Library-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/XynfUturE/AI-Library-Agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://ai-library-agent-xof2.onrender.com)
 
@@ -36,7 +36,7 @@ To deploy your own: `render.yaml` is a one-click Render blueprint, and the Docke
 | --- | --- | --- |
 | Tool-selection accuracy | 20/20 cases | `scripts/eval_agent.py`, raw run in `docs/eval-results.json` |
 | Mean / p95 latency per request | 2.3 s / 3.7 s | same run |
-| Test suite | 96 tests, fully offline | `python -m pytest` |
+| Test suite | 117 tests, fully offline | `python -m pytest` |
 | Agent tools | 17 | `agent/core.py` |
 | Worst-case fixed input per turn | ~9.7k tokens | `MAX_STEPS` x (system prompt + tool schemas) |
 | Unbounded tool results | none | capped at 25 rows with the real total preserved |
@@ -556,6 +556,7 @@ Some sensitive operations also use immediate transactions to reduce race-conditi
 │   ├── database.py         # SQLite schema, migrations + seed data
 │   ├── isbn.py             # ISBN -> metadata (OpenLibrary)
 │   ├── retrieval.py        # Book embeddings + semantic search
+│   ├── trace.py            # Per-turn JSON trace (tokens, tools, latency)
 │   └── tools.py            # Library business logic
 │
 ├── scripts/
@@ -575,13 +576,17 @@ Some sensitive operations also use immediate transactions to reduce race-conditi
 │   ├── test_analytics.py
 │   ├── test_catalog.py
 │   ├── test_due_reminders.py
+│   ├── test_eval_grading.py
 │   ├── test_fines.py
 │   ├── test_holds.py
 │   ├── test_isbn.py
 │   ├── test_loans.py
 │   ├── test_mcp_server.py
+│   ├── test_pagination.py
+│   ├── test_prompt_injection.py
 │   ├── test_reminders.py
 │   ├── test_retrieval.py
+│   ├── test_trace.py
 │   └── test_web_api.py
 │
 ├── .github/workflows/ci.yml
@@ -649,6 +654,7 @@ DEEPSEEK_API_KEY=your_deepseek_api_key_here
 ENABLE_DEMO_LOGIN=1
 CHAT_RATE_LIMIT_PER_MINUTE=20
 # LIBRARY_DB_PATH=/data/library.db
+# AGENT_TRACE_PATH=database/agent-trace.jsonl
 ```
 
 The project reads the key through:
@@ -662,6 +668,8 @@ os.getenv("DEEPSEEK_API_KEY")
 `CHAT_RATE_LIMIT_PER_MINUTE` caps how often one session may call the chat endpoints. Chat is the only endpoint that spends real money, so it is limited to 20 requests per minute per session by default; set it to `0` to disable the limit.
 
 `LIBRARY_DB_PATH` is optional. It points the app (and the tests) at a different SQLite file instead of `database/library.db`, which is handy when mounting a persistent volume. A non-numeric `CHAT_RATE_LIMIT_PER_MINUTE` is ignored with a warning and the default of 20 is used.
+
+`AGENT_TRACE_PATH` is optional and turns on per-turn tracing. Each line is one JSON object: every LLM call with prompt/cache/completion/reasoning tokens and its latency, every tool call with the arguments the model sent and the outcome, and one summary line per turn. The same records go to the `library_agent.trace` logger, so a host can ship them through normal structured logging instead of reading the file.
 
 Delivery of due-date reminders is configured separately, because `scripts/due_reminders.py` is the only component that sends anything:
 
@@ -704,6 +712,13 @@ The web UI provides:
 * A chat interface with streaming agent replies (SSE) and live tool-call step cards
 * A "My Shelf" dashboard: loan stats, active loans with due-date badges, unpaid fines, borrow history, and a searchable catalog
 * Collapsible sidebar with library shortcuts, light/dark theme (follows the system, manually toggleable), and session restore across page refreshes
+
+The list endpoints page in SQL and report the unpaged size, so a growing catalogue never has to be sent in one response:
+
+```text
+GET /api/books?q=code&limit=20&offset=0   ->  {items, total, limit, offset}
+GET /api/shelf/history?limit=10&offset=0  ->  {items, total}
+```
 
 Mutations (borrow, return, pay fine) intentionally go through the AI agent in the chat view; the dashboard itself stays read-only.
 
@@ -758,6 +773,14 @@ docker run -p 8000:8000 -e DEEPSEEK_API_KEY=your_deepseek_api_key_here ai-librar
 ```
 
 The image runs as a non-root user and exposes a built-in health check. Any container platform (Docker, Zeabur, Render, etc.) that injects a `PORT` environment variable is supported via the entry-point's `${PORT:-8000}` fallback.
+
+For a local stack without typing the flags yourself, `docker-compose.yml` starts the web app on port 8000 and the optional MCP server on port 8001, sharing one SQLite volume:
+
+```powershell
+docker compose up --build
+```
+
+The MCP service is the same image built with `INSTALL_MCP=1` and serves the 17 library tools over streamable HTTP at `http://localhost:8001/mcp`.
 
 ### Option D: MCP server (optional)
 
@@ -832,20 +855,26 @@ python -m pytest
 | `test_due_reminders.py`  | Digest building, SMTP delivery, webhook POST, failure reporting      |
 | `test_holds.py`          | Hold queue positions, promotion on return, suggestions, withdrawal   |
 | `test_retrieval.py`      | Local vectors, index build/refresh, meaning-only ranking             |
+| `test_prompt_injection.py` | Tool results stay data: private fields stripped, allow-list fixed, unknown tools refused |
+| `test_trace.py`          | One trace record per LLM step, tool call and turn, plus the failure path |
+| `test_pagination.py`     | Catalogue pages, unpaged totals, invalid pages, history paging       |
+| `test_eval_grading.py`   | Answer grading: refusal, empty answer, missing or forbidden content  |
 
 GitHub Actions runs the same command on every push and pull request (`.github/workflows/ci.yml`).
 
 ### Reproducing the published numbers
 
 ```powershell
-# Tool-selection accuracy, latency and token cost (uses the real model,
-# runs against a throwaway database)
+# Tool selection, answer checks, latency and token cost (uses the real
+# model, runs against a throwaway database)
 python scripts/eval_agent.py --json docs/eval-results.json
 
 # Regenerate the screenshots (needs a running server and playwright)
 pip install playwright
 python scripts/capture_screenshots.py
 ```
+
+Each case carries two verdicts: `matched` (the agent reached for the right tool) and `answer_ok` (the reply is non-empty, stays on topic, and does not fall back to a refusal or an internal error string). Answer checking is deliberately deterministic instead of a second model grading the first: no extra paid call per case, and the score does not drift between runs. The raw JSON keeps the full reply text for every case, so a weak answer can be read rather than guessed at.
 
 ### Manual testing
 
@@ -910,6 +939,7 @@ The project follows several basic security practices:
 * Cross-user operations are rejected by backend logic.
 * Database transactions use rollback handling.
 * Internal errors are not exposed to normal users.
+* Tool results are treated as untrusted data: private fields are stripped before a result reaches the model, the tool allow-list is fixed by the application, and an unknown tool name is refused instead of dispatched. `tests/test_prompt_injection.py` drives a payload that tries all three.
 * Chat requests are rate limited per session (in-memory counters, so the limit is per worker).
 * Session tokens are random and sent in an `X-Session-ID` header from `sessionStorage`; no cookie is attached automatically, so there is no ambient-credential CSRF surface.
 * Demo login is password-free by design and enabled by default; set `ENABLE_DEMO_LOGIN=0` on a real deployment.
@@ -931,11 +961,11 @@ still genuinely missing:
 
 * Persistent long-term AI memory across sessions
 * Better recommendation ranking
-* Answer-quality evaluation — the current harness measures tool selection, not whether the reply itself is correct
+* A model-as-judge pass on top of the deterministic answer checks, for cases where wording quality matters
 * Token-level streaming of the final LLM answer (the UI streams step events, then delivers the answer as one chunk)
 * Server-side session and conversation persistence (sessions are in process memory, single worker)
 * A shared database instead of a container-local SQLite file
-* Observability and agent tracing
+* Shipping the trace file to a collector instead of a local JSONL file
 * Authentication hardening (JWT/OAuth, CSRF protection, HTTPS-only transport)
 
 ---

@@ -1098,6 +1098,15 @@ def shelf_fines(
     response_model=ShelfItemsResponse,
 )
 def shelf_history(
+    limit: int | None = Query(
+        default=None,
+        ge=1,
+        le=200,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+    ),
     x_session_id: str | None = Header(
         default=None
     ),
@@ -1117,9 +1126,24 @@ def shelf_history(
         "not be retrieved.",
     )
 
+    total = len(
+        history
+    )
+
+    # ponytail: one reader's history is small, so the page is sliced in
+    # Python. Push LIMIT/OFFSET into SQL if a reader ever holds
+    # thousands of loans.
+    if limit is not None:
+
+        history = history[
+            offset:
+            offset + limit
+        ]
+
     return ShelfItemsResponse(
         success=True,
         items=history,
+        total=total,
     )
 
 
@@ -1134,6 +1158,15 @@ def shelf_history(
 def book_catalog(
     q: str | None = Query(
         default=None
+    ),
+    limit: int | None = Query(
+        default=None,
+        ge=1,
+        le=200,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
     ),
     x_session_id: str | None = Header(
         default=None
@@ -1155,12 +1188,25 @@ def book_catalog(
 
     items = catalog_service.query_catalog(
         keyword=keyword,
+        limit=limit,
+        offset=offset,
     )
+
+    total = None
+
+    if limit is not None:
+
+        total = catalog_service.count_catalog(
+            keyword=keyword,
+        )
 
     return CatalogResponse(
         success=True,
         items=items,
         query=keyword,
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 

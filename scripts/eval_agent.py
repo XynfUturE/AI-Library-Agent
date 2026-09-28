@@ -1,11 +1,19 @@
-"""Score the agent on tool selection, latency and token cost.
+"""Score the agent on tool selection, answer quality, latency and token cost.
 
     python scripts/eval_agent.py
     python scripts/eval_agent.py --json eval-results.json
 
-Every case is a plain sentence plus the tools that would be correct for
-it. The script runs the real agent (so it needs DEEPSEEK_API_KEY) and
-reports which tool the agent actually reached for first.
+Every case is a plain sentence, the tools that would be correct for it,
+and optionally what the answer has to contain. The script runs the real
+agent (so it needs DEEPSEEK_API_KEY) and reports which tool the agent
+reached for first, whether the reply stayed on topic, and what it cost.
+
+Answer checking is deliberately deterministic: no second model grades
+the reply. The checks catch the failures that actually matter in a tool
+calling agent - a refusal, an internal error message, an empty reply, or
+an answer that ignores what the tools returned. Swapping in a
+model-as-judge would mean a second paid call per case and a score that
+moves between runs; keep it optional if you ever need it.
 
 It runs against a throwaway database, so borrow/pay cases cannot touch
 the real one.
@@ -25,6 +33,7 @@ import argparse
 import contextlib
 import io
 import json
+import re
 import statistics
 import sys
 import time
@@ -44,18 +53,31 @@ from agent.auth import login_demo_user
 from agent.core import LibraryAgent
 
 
+ANSWER_MISS_PATTERNS = [
+    r"\bas an ai\b",
+    r"i (?:can'?t|cannot|am unable to) (?:help|assist|access)",
+    r"i don'?t have (?:the )?access",
+    r"something went wrong",
+    r"could not complete your request",
+    r"internal error",
+]
+
+
 CASES = [
     (
         "Find books by Isaac Asimov",
         {"search_books"},
+        {"contains": [r"asimov"]},
     ),
     (
         "What do you have about space and the universe?",
         {"search_books_semantic", "search_books"},
+        {"contains": [r"space|universe|cosmos|astronom"]},
     ),
     (
         "Do you have a copy of Clean Code?",
         {"search_books", "check_book_availability"},
+        {"contains": [r"clean code"]},
     ),
     (
         "Is book 5 available right now?",
@@ -88,10 +110,12 @@ CASES = [
     (
         "How much fine do I owe for book 7?",
         {"calculate_fine", "get_book_loan_details"},
+        {"contains": [r"fine|owe|overdue"]},
     ),
     (
         "Do I have unpaid fines?",
         {"get_unpaid_fines"},
+        {"contains": [r"fine"]},
     ),
     (
         "Pay the fine for book 7",
@@ -100,10 +124,12 @@ CASES = [
     (
         "Show my borrowing history",
         {"get_borrow_history"},
+        {"contains": [r"borrow|loan|history|no record"]},
     ),
     (
         "Which books are on the shelf right now?",
         {"list_available_books"},
+        {"contains": [r"available|shelf|on the shelf"]},
     ),
     (
         "Put me in line for book 9",
@@ -116,6 +142,7 @@ CASES = [
     (
         "What am I waiting for?",
         {"get_my_holds"},
+        {"contains": [r"hold|wait|queue|suggest|no "]},
     ),
     (
         "Cancel my hold number 3",
@@ -193,6 +220,15 @@ def run_case(user_id, prompt):
         if event["type"] == "tool_start"
     ]
 
+    answer = next(
+        (
+            event["message"]
+            for event in events
+            if event["type"] == "final"
+        ),
+        "",
+    )
+
     errors = [
         event["message"]
         for event in events
@@ -201,10 +237,89 @@ def run_case(user_id, prompt):
 
     return {
         "prompt": prompt,
+        "answer": answer,
         "tools": tools,
         "error": errors[0] if errors else None,
         "seconds": round(elapsed, 2),
         "usage": parse_usage(buffer.getvalue()),
+    }
+
+
+def answer_checks(case):
+    """
+    Optional expected-content checks: the third element of a case.
+    """
+
+    if len(case) > 2 and case[2]:
+
+        return case[2]
+
+    return {}
+
+
+def grade_answer(answer, checks):
+    """
+    Check the reply itself, without a second model.
+
+    A tool calling agent fails quietly in two ways: it refuses, or it
+    answers without using what the tools returned. Both are catchable
+    with plain patterns, and both are visible in the raw JSON output
+    when a case needs a closer look.
+    """
+
+    text = (
+        answer
+        or
+        ""
+    ).lower()
+
+    problems = []
+
+    if not text.strip():
+
+        problems.append(
+            "empty answer"
+        )
+
+    patterns = (
+        ANSWER_MISS_PATTERNS
+        +
+        list(
+            checks.get(
+                "forbidden",
+                (),
+            )
+        )
+    )
+
+    for pattern in patterns:
+
+        if re.search(
+            pattern,
+            text,
+        ):
+
+            problems.append(
+                f"matched /{pattern}/"
+            )
+
+    for pattern in checks.get(
+        "contains",
+        (),
+    ):
+
+        if not re.search(
+            pattern,
+            text,
+        ):
+
+            problems.append(
+                f"missing /{pattern}/"
+            )
+
+    return {
+        "answer_ok": not problems,
+        "answer_problems": problems,
     }
 
 
@@ -273,6 +388,15 @@ def main(argv=None):
             result,
         )
 
+        verdict.update(
+            grade_answer(
+                result["answer"],
+                answer_checks(
+                    case
+                ),
+            )
+        )
+
         rows.append({
             **result,
             **verdict,
@@ -280,15 +404,31 @@ def main(argv=None):
 
         mark = "ok  " if verdict["matched"] else "MISS"
 
+        if not verdict["answer_ok"]:
+
+            mark = "WEAK"
+
         print(
             f'{mark} {result["seconds"]:>5.1f}s  '
             f'{str(verdict["first_tool"]):<28} {case[0]}'
         )
 
+        for problem in verdict["answer_problems"]:
+
+            print(
+                f"       answer {problem}"
+            )
+
     matched = sum(
         1
         for row in rows
         if row["matched"]
+    )
+
+    answered = sum(
+        1
+        for row in rows
+        if row["answer_ok"]
     )
 
     seconds = [
@@ -315,6 +455,10 @@ def main(argv=None):
             matched / len(rows),
             3,
         ),
+        "answer_accuracy": round(
+            answered / len(rows),
+            3,
+        ),
         "mean_seconds": round(
             statistics.mean(seconds),
             2,
@@ -336,7 +480,8 @@ def main(argv=None):
     print(
         "summary: "
         f'{summary["cases"]} cases, '
-        f'accuracy {summary["tool_selection_accuracy"]:.0%}, '
+        f'tool accuracy {summary["tool_selection_accuracy"]:.0%}, '
+        f'answer accuracy {summary["answer_accuracy"]:.0%}, '
         f'mean {summary["mean_seconds"]}s, '
         f'p95 {summary["p95_seconds"]}s, '
         f'{totals["steps"]} LLM steps, '

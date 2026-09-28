@@ -617,6 +617,18 @@ def create_indexes(cursor):
         """
     )
 
+    # Due-date reminders scan every open loan in due-date order. The
+    # partial index only holds rows that can still be returned, so it
+    # stays small as history grows.
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS
+        idx_borrow_records_open_due_date
+        ON borrow_records(due_date)
+        WHERE returned_at IS NULL
+        """
+    )
+
 
 # ============================================================
 # CREATE DEFAULT DEMO USER

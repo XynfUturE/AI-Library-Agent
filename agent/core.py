@@ -1,8 +1,11 @@
 import json
 import os
+import time
 
 from dotenv import load_dotenv
 from openai import OpenAI
+
+from agent import trace
 
 from agent.tools import (
     search_books,
@@ -191,27 +194,29 @@ def _sanitize_tool_result(
     result,
 ):
     """
-    Remove internal debug fields before the result is
-    serialized back into the LLM conversation context.
+    Remove private fields before the result is serialized back into
+    the LLM conversation context.
+
+    Tool payloads carry untrusted text (book titles, ISBN lookups,
+    free-text suggestions), so the model only ever sees the public
+    shape: anything a tool marks with a leading underscore stays
+    internal, and a new debug key cannot leak by default.
     """
 
-    if (
-        isinstance(
-            result,
-            dict,
-        )
-        and "_debug_error" in result
+    if isinstance(
+        result,
+        dict,
     ):
 
-        sanitized = dict(
-            result
-        )
-
-        sanitized.pop(
-            "_debug_error"
-        )
-
-        return sanitized
+        return {
+            key: value
+            for key, value in result.items()
+            if not str(
+                key
+            ).startswith(
+                "_"
+            )
+        }
 
     return result
 
@@ -1159,6 +1164,7 @@ class LibraryAgent:
         self,
         response,
         step,
+        seconds=None,
     ):
         """
         Report token usage of one LLM call.
@@ -1173,10 +1179,6 @@ class LibraryAgent:
             "usage",
             None,
         )
-
-        if usage is None:
-
-            return
 
         # Reasoning tokens are billed as output, so they are reported
         # separately: without this the completion count looks huge and
@@ -1200,6 +1202,28 @@ class LibraryAgent:
                 "reasoning_tokens",
                 None,
             )
+
+        trace.record(
+            "llm_step",
+            step=step,
+            seconds=(
+                round(
+                    seconds,
+                    3,
+                )
+                if seconds is not None
+                else None
+            ),
+            prompt=getattr(usage, "prompt_tokens", None),
+            cache_hit=getattr(usage, "prompt_cache_hit_tokens", None),
+            cache_miss=getattr(usage, "prompt_cache_miss_tokens", None),
+            completion=getattr(usage, "completion_tokens", None),
+            reasoning=reasoning,
+        )
+
+        if usage is None:
+
+            return
 
         print(
             "[usage]"
@@ -1656,6 +1680,8 @@ class LibraryAgent:
             "message": "Thinking...",
         }
 
+        turn_started = time.perf_counter()
+
         # ----------------------------------------------------
         # Agent loop
         # ----------------------------------------------------
@@ -1665,6 +1691,8 @@ class LibraryAgent:
         ):
 
             try:
+
+                step_started = time.perf_counter()
 
                 response = (
                     self.client
@@ -1683,6 +1711,12 @@ class LibraryAgent:
 
             except Exception:
 
+                trace.record(
+                    "llm_error",
+                    step=step,
+                    error="upstream_request_failed",
+                )
+
                 # Report upstream failures as an event instead of
                 # raising: the caller rolls the turn back and the
                 # next request starts from a clean history.
@@ -1699,9 +1733,16 @@ class LibraryAgent:
             self.log_usage(
                 response,
                 step,
+                time.perf_counter() - step_started,
             )
 
             if not response.choices:
+
+                trace.record(
+                    "llm_error",
+                    step=step,
+                    error="empty_response",
+                )
 
                 yield {
                     "type": "error",
@@ -1735,6 +1776,20 @@ class LibraryAgent:
 
             if not message.tool_calls:
 
+                trace.record(
+                    "turn_end",
+                    steps=step + 1,
+                    seconds=round(
+                        time.perf_counter() - turn_started,
+                        3,
+                    ),
+                    answer_chars=len(
+                        message.content
+                        or
+                        ""
+                    ),
+                )
+
                 yield {
                     "type": "final",
                     "message": (
@@ -1763,6 +1818,8 @@ class LibraryAgent:
                     .function
                     .arguments
                 )
+
+                tool_started = time.perf_counter()
 
                 # --------------------------------------------
                 # Friendly UI message
@@ -1832,6 +1889,42 @@ class LibraryAgent:
                             arguments,
                         )
 
+                trace.record(
+                    "tool_call",
+                    step=step,
+                    tool=function_name,
+                    args=summarize_tool_arguments(
+                        raw_arguments
+                    ),
+                    success=(
+                        result.get(
+                            "success"
+                        )
+                        if isinstance(
+                            result,
+                            dict,
+                        )
+                        else None
+                    ),
+                    rows=(
+                        len(
+                            result
+                        )
+                        if isinstance(
+                            result,
+                            (
+                                list,
+                                tuple,
+                            ),
+                        )
+                        else None
+                    ),
+                    seconds=round(
+                        time.perf_counter() - tool_started,
+                        3,
+                    ),
+                )
+
                 # --------------------------------------------
                 # Save tool result for the next LLM call
                 # --------------------------------------------
@@ -1899,3 +1992,13 @@ class LibraryAgent:
                 "number of steps."
             ),
         }
+
+        trace.record(
+            "turn_error",
+            error="max_steps_exceeded",
+            steps=MAX_STEPS,
+            seconds=round(
+                time.perf_counter() - turn_started,
+                3,
+            ),
+        )

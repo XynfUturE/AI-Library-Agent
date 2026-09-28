@@ -208,6 +208,33 @@ def main(argv=None):
         ),
     )
 
+    parser.add_argument(
+        "--transport",
+        choices=(
+            "stdio",
+            "sse",
+            "streamable-http",
+        ),
+        default="stdio",
+        help=(
+            "stdio for a local MCP client (default), "
+            "streamable-http to serve the tools over HTTP"
+        ),
+    )
+
+    parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="bind address for the HTTP transports",
+    )
+
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8001,
+        help="port for the HTTP transports",
+    )
+
     args = parser.parse_args(
         argv
     )
@@ -219,9 +246,21 @@ def main(argv=None):
             "(or set LIBRARY_MCP_USER_ID)"
         )
 
-    build_server(
+    server = build_server(
         args.user_id
-    ).run()
+    )
+
+    if args.transport == "stdio":
+
+        server.run()
+
+    else:
+
+        server.run(
+            args.transport,
+            host=args.host,
+            port=args.port,
+        )
 
     return 0
 

@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/XynfUturE/AI-Library-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/XynfUturE/AI-Library-Agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://ai-library-agent-xof2.onrender.com)
 
@@ -36,7 +36,7 @@ docker build -t ai-library-agent . && docker run -p 8000:8000 -e DEEPSEEK_API_KE
 | --- | --- | --- |
 | 工具选择准确率 | 20/20 用例 | `scripts/eval_agent.py`，原始结果见 `docs/eval-results.json` |
 | 单次请求平均 / P95 延迟 | 2.3s / 3.7s | 同一次评测 |
-| 测试 | 96 个用例，全离线 | `python -m pytest` |
+| 测试 | 117 个用例，全离线 | `python -m pytest` |
 | Agent 工具数 | 17 | `agent/core.py` |
 | 单轮最坏固定输入 | 约 9.7k tokens | `MAX_STEPS` ×（系统提示词 + 工具 schema） |
 | 无上限的工具返回 | 无 | 列表超过 25 行即截断，但仍保留真实总数 |
@@ -833,6 +833,7 @@ BEGIN IMMEDIATE
 * Cross-user operations 在后端拒绝
 * Database operations 使用 transactions
 * Internal errors 不直接显示给普通用户
+* 工具返回按不可信数据处理：进入模型上下文前剥离私有字段，工具白名单由应用固定，未知工具名直接拒绝而不是分发。`tests/test_prompt_injection.py` 用一条试图同时突破这三点的注入载荷做了覆盖
 * 聊天请求按会话限流（计数器在内存中，因此限流粒度是单个 worker）
 * 会话令牌随机生成，存在 `sessionStorage` 并用 `X-Session-ID` 请求头发送；不依赖 Cookie，因此没有"浏览器自动带凭证"式的 CSRF 面
 * Demo 登录按设计免密码，且默认开启；正式部署应设置 `ENABLE_DEMO_LOGIN=0`
@@ -897,6 +898,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 │   ├── database.py         # SQLite 表结构、迁移 + 种子数据
 │   ├── isbn.py             # ISBN 查书目（OpenLibrary）
 │   ├── retrieval.py        # 图书向量索引与语义检索
+│   ├── trace.py            # 每轮 JSON 追踪（token、工具、延迟）
 │   └── tools.py            # 图书馆业务逻辑
 │
 ├── scripts/
@@ -916,13 +918,17 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 │   ├── test_analytics.py
 │   ├── test_catalog.py
 │   ├── test_due_reminders.py
+│   ├── test_eval_grading.py
 │   ├── test_fines.py
 │   ├── test_holds.py
 │   ├── test_isbn.py
 │   ├── test_loans.py
 │   ├── test_mcp_server.py
+│   ├── test_pagination.py
+│   ├── test_prompt_injection.py
 │   ├── test_reminders.py
 │   ├── test_retrieval.py
+│   ├── test_trace.py
 │   └── test_web_api.py
 │
 ├── .github/workflows/ci.yml
@@ -989,6 +995,7 @@ DEEPSEEK_API_KEY=your_deepseek_api_key_here
 ENABLE_DEMO_LOGIN=1
 CHAT_RATE_LIMIT_PER_MINUTE=20
 # LIBRARY_DB_PATH=/data/library.db
+# AGENT_TRACE_PATH=database/agent-trace.jsonl
 ```
 
 程序通过：
@@ -1015,6 +1022,8 @@ SMTP_TLS=1
 没有 `SMTP_HOST` 时，脚本仍可打印清单，但 `--email` 会明确报错退出。
 
 `LIBRARY_DB_PATH` 可选，用于把 SQLite 指向其他路径（测试或挂载持久化卷时使用），默认 `database/library.db`。
+
+`AGENT_TRACE_PATH` 可选，设置后开启每轮追踪。每行一个 JSON：每次 LLM 调用的 prompt/cache/completion/reasoning token 与耗时、每次工具调用（含模型给的参数与结果状态），以及每轮一条汇总记录。同样的记录也会发到 `library_agent.trace` logger，接入结构化日志系统时不必读文件。
 
 项目同时提供：
 
@@ -1044,6 +1053,13 @@ Web 界面提供：
 * 聊天界面：SSE 流式回复、实时工具调用步骤卡（可展开查看参数）
 * "My Shelf" 仪表盘：借阅统计、在借列表（含到期徽章）、未付罚金、借阅历史、可搜索的图书目录
 * 可折叠侧边栏（含图书馆快捷操作）、浅色/深色主题（跟随系统 + 手动切换）、刷新后自动恢复登录态
+
+列表接口在 SQL 层分页并返回未分页的总数，书目增长时也不必一次返回全部：
+
+```text
+GET /api/books?q=code&limit=20&offset=0   ->  {items, total, limit, offset}
+GET /api/shelf/history?limit=10&offset=0  ->  {items, total}
+```
 
 借书、还书、缴罚金等写操作统一通过聊天视图中的 AI Agent 完成，仪表盘保持只读。
 
@@ -1095,6 +1111,14 @@ docker run -p 8000:8000 -e DEEPSEEK_API_KEY=你的key ai-library-agent
 ```
 
 镜像以非 root 用户运行，并内置健康检查。任何注入 `PORT` 的容器平台（Docker、Zeabur、Render 等）都能直接用，入口脚本以 `${PORT:-8000}` 兜底。
+
+不想手敲参数就用 `docker-compose.yml`：一条命令起 Web（8000 端口）与可选的 MCP 服务（8001 端口），两者共享同一个 SQLite 卷。
+
+```powershell
+docker compose up --build
+```
+
+MCP 服务是同一份镜像用 `INSTALL_MCP=1` 构建出来的，把 17 个图书馆工具以 streamable HTTP 暴露在 `http://localhost:8001/mcp`。
 
 ### 方式 D：MCP 服务端（可选）
 
@@ -1171,19 +1195,25 @@ python -m pytest
 | `test_due_reminders.py` | 提醒摘要、SMTP 发送、Webhook POST、失败上报           |
 | `test_holds.py`      | 预约排队位置、归还是提升队列、荐购、撤回               |
 | `test_retrieval.py`  | 本地向量、索引构建与刷新、仅凭语义的排序                |
+| `test_prompt_injection.py` | 工具返回仍是数据：私有字段被剥离、工具白名单固定、未知工具被拒 |
+| `test_trace.py`      | 每次 LLM 调用、工具调用与整轮结束各留一条追踪记录，含失败路径      |
+| `test_pagination.py` | 目录分页、未分页总数、非法页码、借阅历史分页               |
+| `test_eval_grading.py` | 评测里的回答判定：拒答、空回答、缺少或命中禁止内容          |
 
 GitHub Actions 会在每次 push 与 pull request 上运行同一命令（`.github/workflows/ci.yml`）。
 
 ### 复现上面的数字
 
 ```powershell
-# 工具选择准确率、延迟与 token 成本（调用真实模型，跑在临时数据库上）
+# 工具选择、回答判定、延迟与 token 成本（调用真实模型，跑在临时数据库上）
 python scripts/eval_agent.py --json docs/eval-results.json
 
 # 重新生成截图（需要服务已启动 + playwright）
 pip install playwright
 python scripts/capture_screenshots.py
 ```
+
+每条用例出两个结论：`matched`（是否先调用正确的工具）和 `answer_ok`（回答非空、切题、没有退化成拒答或内部错误话术）。回答判定刻意做成确定性规则，而不是再花一次模型调用去当裁判：不额外花钱，分数也不会在两次运行之间漂移。原始 JSON 会保留每条用例的完整回答，弱在哪可以直接读，不用猜。
 
 ---
 
@@ -1268,9 +1298,8 @@ python scripts/capture_screenshots.py
 
 * 跨会话的长期记忆
 * 更精细的推荐排序
-* 回答质量评测（当前只评工具选择，不评回答本身对不对）
+* 在确定性回答判定之上再加一层模型裁判（只在措辞质量本身重要时用）
 * 多 Agent 协作与 Agent 规划
-* Agent Tracing / 可观测性
 
 ### 图书馆业务
 
@@ -1283,8 +1312,9 @@ python scripts/capture_screenshots.py
 * Web 界面中最终回答的逐字流式输出（当前按步骤事件流式推送，回答整体返回）
 * 服务端会话与对话持久化（当前会话在进程内存中，容器单 worker）
 * 共享数据库（替换容器本地 SQLite 文件）
+* 把追踪文件送进日志采集系统（当前只写本地 JSONL）
 * 认证加固（JWT/OAuth、CSRF、仅 HTTPS）
-* 结构化日志与监控告警
+* 监控告警
 
 ---
 

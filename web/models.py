@@ -69,12 +69,18 @@ class ShelfSummaryResponse(BaseModel):
 class ShelfItemsResponse(BaseModel):
     success: bool
     items: list[dict]
+    # Only set when the caller asked for a page, so the client can tell
+    # how much of the list it is missing.
+    total: int | None = None
 
 
 class CatalogResponse(BaseModel):
     success: bool
     items: list[dict]
     query: str | None = None
+    total: int | None = None
+    limit: int | None = None
+    offset: int = 0
 
 
 # ============================================================

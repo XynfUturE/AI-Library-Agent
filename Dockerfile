@@ -13,15 +13,23 @@ WORKDIR /app
 # Install Python dependencies (layer cached unless requirements change)
 # PIP_INDEX_URL can point to a PyPI mirror (e.g. a domestic mirror in China).
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY requirements.txt .
-RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" -r requirements.txt
+# INSTALL_MCP=1 adds the optional MCP server dependencies, so the
+# docker-compose MCP service can reuse this same image definition.
+ARG INSTALL_MCP=0
+COPY requirements.txt requirements-mcp.txt ./
+RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" -r requirements.txt \
+    && if [ "$INSTALL_MCP" = "1" ]; then \
+        pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" -r requirements-mcp.txt; \
+    fi
 
 # Copy application source
 COPY . .
 
 # Run as a non-root user. SQLite needs write access to the
-# database directory at runtime.
-RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+# database directory at runtime, and that directory has to exist
+# before a volume is mounted over it, or the volume arrives root-owned.
+RUN mkdir -p /app/database \
+    && useradd --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app
 
 USER appuser
