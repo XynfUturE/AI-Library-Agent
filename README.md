@@ -8,7 +8,7 @@ A conversational front desk for a library. Readers ask in plain language and the
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://ai-library-agent-xof2.onrender.com)
 
-**Live demo:** https://ai-library-agent-xof2.onrender.com — press **Continue as Demo**. The free tier sleeps after 15 minutes idle, so the first request can take ~30 seconds.
+**Live demo:** https://ai-library-agent-xof2.onrender.com — press **Continue as Demo**. The free tier sleeps after 15 minutes idle, so the first request can take 30 seconds.
 
 <img src="docs/screenshots/02-chat.png" width="760" alt="Chat view with suggested actions">
 
