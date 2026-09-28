@@ -1,8 +1,46 @@
 # AI Library Agent
 
-An intelligent library management system powered by a Large Language Model (LLM) and tool-calling architecture.
+A conversational front desk for a library. Readers ask in plain language and the agent does the work against real circulation data: search, borrow, renew, queue a hold, suggest a purchase. Self-hosted, so borrowing records never leave the institution.
 
-The project combines a traditional Python + SQLite library system with an AI agent that can understand natural-language requests, select the appropriate tools, access real database data, maintain task state, and provide user-friendly responses.
+[![CI](https://github.com/XynfUturE/AI-Library-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/XynfUturE/AI-Library-Agent/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+<img src="docs/screenshots/02-chat.png" width="760" alt="Chat view with suggested actions">
+
+### Run it in one command
+
+```bash
+docker build -t ai-library-agent . && docker run -p 8000:8000 -e DEEPSEEK_API_KEY=your_key ai-library-agent
+```
+
+Open http://127.0.0.1:8000 and press **Continue as Demo**. Deploying is the same story: `render.yaml` is a one-click Render blueprint, and the Dockerfile honours `$PORT` on Zeabur/Render.
+
+### What this does that a book-recommendation bot cannot
+
+| A lending app says | This project does |
+| --- | --- |
+| "That copy is not available" | Queues a hold, reports queue position and estimated wait, then promotes the next reader inside the return transaction |
+| "We do not have that title" | Records a purchase suggestion and turns the backlog into a ranked acquisition list for the librarian |
+| "Pick your fields" | "Renew Clean Code" is enough: the authenticated user id is injected server-side, never supplied by the model |
+
+### Measured, not claimed
+
+| Metric | Value | Source |
+| --- | --- | --- |
+| Tool-selection accuracy | 20/20 cases | `scripts/eval_agent.py`, raw run in `docs/eval-results.json` |
+| Mean / p95 latency per request | 2.3 s / 3.7 s | same run |
+| Test suite | 96 tests, fully offline | `python -m pytest` |
+| Agent tools | 17 | `agent/core.py` |
+| Worst-case fixed input per turn | ~9.7k tokens | `MAX_STEPS` x (system prompt + tool schemas) |
+| Unbounded tool results | none | capped at 25 rows with the real total preserved |
+
+---
+
+## 1. Project Overview
+
+AI Library Agent combines a traditional Python + SQLite library system with an agent that understands natural-language requests, selects the right tool, reads and writes real database data, and keeps the conversation bounded in cost.
 
 ---
 
@@ -515,9 +553,15 @@ Some sensitive operations also use immediate transactions to reduce race-conditi
 │   └── tools.py            # Library business logic
 │
 ├── scripts/
+│   ├── capture_screenshots.py  # Regenerate docs/screenshots
 │   ├── due_reminders.py    # Cron-friendly due-date/overdue listing
+│   ├── eval_agent.py       # Tool-selection accuracy, latency, token cost
 │   ├── isbn_lookup.py      # ISBN lookup from the command line
 │   └── mcp_server.py       # Optional MCP server (needs requirements-mcp.txt)
+│
+├── docs/
+│   ├── eval-results.json   # Raw output of the last eval run
+│   └── screenshots/        # UI screenshots used by this README
 │
 ├── tests/                  # pytest suite (offline, throwaway database)
 │   ├── conftest.py
@@ -656,6 +700,8 @@ The web UI provides:
 
 Mutations (borrow, return, pay fine) intentionally go through the AI agent in the chat view; the dashboard itself stays read-only.
 
+<img src="docs/screenshots/03-shelf.png" width="520" alt="My Shelf dashboard"> <img src="docs/screenshots/04-catalog.png" width="520" alt="Searchable catalog with categories">
+
 ### Option B: Terminal CLI
 
 Start the application with:
@@ -774,6 +820,18 @@ python -m pytest
 | `test_holds.py`          | Hold queue positions, promotion on return, suggestions, withdrawal   |
 
 GitHub Actions runs the same command on every push and pull request (`.github/workflows/ci.yml`).
+
+### Reproducing the published numbers
+
+```powershell
+# Tool-selection accuracy, latency and token cost (uses the real model,
+# runs against a throwaway database)
+python scripts/eval_agent.py --json docs/eval-results.json
+
+# Regenerate the screenshots (needs a running server and playwright)
+pip install -r requirements-dev.txt
+python scripts/capture_screenshots.py
+```
 
 ### Manual testing
 

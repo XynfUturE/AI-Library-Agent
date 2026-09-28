@@ -1,8 +1,44 @@
 # AI Library Agent
 
-一个基于大型语言模型（LLM）和 Tool Calling 架构开发的智能图书馆管理系统。
+图书馆的对话式前台：读者用一句自然语言说话，Agent 就在真实的流通数据上把事办完——搜索、借阅、续借、排队预约、荐购。项目自托管，借阅记录不出机构。
 
-本项目将传统的 **Python + SQLite Library Management System** 与 AI Agent 结合，使用户可以通过自然语言完成图书搜索、借阅、归还、逾期查询、罚款查询、罚款支付、借阅历史查询以及图书推荐等操作。
+[![CI](https://github.com/XynfUturE/AI-Library-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/XynfUturE/AI-Library-Agent/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+<img src="docs/screenshots/02-chat.png" width="760" alt="聊天界面">
+
+### 一条命令跑起来
+
+```bash
+docker build -t ai-library-agent . && docker run -p 8000:8000 -e DEEPSEEK_API_KEY=你的key ai-library-agent
+```
+
+打开 http://127.0.0.1:8000 ，点 **Continue as Demo** 即可。部署同样简单：`render.yaml` 是 Render 的一键蓝图，Dockerfile 已适配 Zeabur/Render 注入的 `$PORT`。
+
+### 这些是普通"荐书机器人"做不到的
+
+| 普通应用会说 | 本项目会做 |
+| --- | --- |
+| "这本书没有可借副本" | 直接排队预约，报出排位与预计等待，并在归还事务内把下一位读者置为可取 |
+| "馆里没有这本书" | 记下荐购，并汇总成馆员可按热度处理的采购清单 |
+| "请选择你要填的字段" | 一句"续借 Clean Code"就够；user_id 由服务端注入，模型拿不到也改不了 |
+
+### 数字说话
+
+| 指标 | 数值 | 来源 |
+| --- | --- | --- |
+| 工具选择准确率 | 20/20 用例 | `scripts/eval_agent.py`，原始结果见 `docs/eval-results.json` |
+| 单次请求平均 / P95 延迟 | 2.3s / 3.7s | 同一次评测 |
+| 测试 | 96 个用例，全离线 | `python -m pytest` |
+| Agent 工具数 | 17 | `agent/core.py` |
+| 单轮最坏固定输入 | 约 9.7k tokens | `MAX_STEPS` ×（系统提示词 + 工具 schema） |
+| 无上限的工具返回 | 无 | 列表超过 25 行即截断，但仍保留真实总数 |
+
+---
+
+本项目将传统的 **Python + SQLite Library Management System** 与 AI Agent 结合，使用户可以通过自然语言完成图书搜索、借阅、归还、续借、预约、荐购、逾期与罚款处理。
 
 AI Agent 不直接修改数据库，而是根据用户请求选择预先定义的 Python Tools，由后端业务逻辑执行实际操作，再将真实的数据库结果返回给 Agent。
 
@@ -851,9 +887,15 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 │   └── tools.py            # 图书馆业务逻辑
 │
 ├── scripts/
+│   ├── capture_screenshots.py  # 重新生成截图
 │   ├── due_reminders.py    # 供 cron 调用的到期/逾期清单
+│   ├── eval_agent.py       # 工具选择准确率、延迟、token 成本
 │   ├── isbn_lookup.py      # 命令行 ISBN 查书
 │   └── mcp_server.py       # 可选 MCP 服务端（需 requirements-mcp.txt）
+│
+├── docs/
+│   ├── eval-results.json   # 最近一次评测的原始输出
+│   └── screenshots/        # README 使用的界面截图
 │
 ├── tests/                  # pytest 测试（离线、临时数据库）
 │   ├── conftest.py
@@ -991,6 +1033,8 @@ Web 界面提供：
 
 借书、还书、缴罚金等写操作统一通过聊天视图中的 AI Agent 完成，仪表盘保持只读。
 
+<img src="docs/screenshots/03-shelf.png" width="520" alt="My Shelf 仪表盘"> <img src="docs/screenshots/04-catalog.png" width="520" alt="可搜索的图书目录">
+
 ### 方式 B：终端 CLI
 
 启动：
@@ -1099,6 +1143,17 @@ python -m pytest
 | `test_holds.py`      | 预约排队位置、归还是提升队列、荐购、撤回               |
 
 GitHub Actions 会在每次 push 与 pull request 上运行同一命令（`.github/workflows/ci.yml`）。
+
+### 复现上面的数字
+
+```powershell
+# 工具选择准确率、延迟与 token 成本（调用真实模型，跑在临时数据库上）
+python scripts/eval_agent.py --json docs/eval-results.json
+
+# 重新生成截图（需要服务已启动 + playwright）
+pip install -r requirements-dev.txt
+python scripts/capture_screenshots.py
+```
 
 ---
 

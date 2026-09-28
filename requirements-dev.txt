@@ -1,3 +1,7 @@
 # Test-only dependencies. Install with:
 #   pip install -r requirements.txt -r requirements-dev.txt
 pytest==9.1.1
+
+# Only for scripts/capture_screenshots.py (README screenshots).
+# Uses the Edge or Chrome already installed, so no browser download.
+playwright==1.63.0

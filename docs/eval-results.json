@@ -1,0 +1,414 @@
+{
+  "summary": {
+    "cases": 20,
+    "tool_selection_accuracy": 1.0,
+    "mean_seconds": 2.31,
+    "p95_seconds": 3.71,
+    "prompt": 108962,
+    "completion": 4477,
+    "reasoning": 1426,
+    "steps": 46
+  },
+  "results": [
+    {
+      "prompt": "Find books by Isaac Asimov",
+      "tools": [
+        "search_books",
+        "search_books_semantic",
+        "search_books"
+      ],
+      "error": null,
+      "seconds": 3.96,
+      "usage": {
+        "prompt": 7278,
+        "completion": 411,
+        "reasoning": 65,
+        "steps": 3
+      },
+      "expected": [
+        "search_books"
+      ],
+      "first_tool": "search_books",
+      "matched": true
+    },
+    {
+      "prompt": "What do you have about space and the universe?",
+      "tools": [
+        "search_books_semantic",
+        "search_books",
+        "search_books"
+      ],
+      "error": null,
+      "seconds": 3.53,
+      "usage": {
+        "prompt": 8876,
+        "completion": 485,
+        "reasoning": 155,
+        "steps": 3
+      },
+      "expected": [
+        "search_books",
+        "search_books_semantic"
+      ],
+      "first_tool": "search_books_semantic",
+      "matched": true
+    },
+    {
+      "prompt": "Do you have a copy of Clean Code?",
+      "tools": [
+        "search_books"
+      ],
+      "error": null,
+      "seconds": 1.52,
+      "usage": {
+        "prompt": 4496,
+        "completion": 124,
+        "reasoning": 25,
+        "steps": 2
+      },
+      "expected": [
+        "check_book_availability",
+        "search_books"
+      ],
+      "first_tool": "search_books",
+      "matched": true
+    },
+    {
+      "prompt": "Is book 5 available right now?",
+      "tools": [
+        "check_book_availability"
+      ],
+      "error": null,
+      "seconds": 1.34,
+      "usage": {
+        "prompt": 4490,
+        "completion": 70,
+        "reasoning": 0,
+        "steps": 2
+      },
+      "expected": [
+        "check_book_availability"
+      ],
+      "first_tool": "check_book_availability",
+      "matched": true
+    },
+    {
+      "prompt": "I want to borrow book 3",
+      "tools": [
+        "check_book_availability",
+        "borrow_book"
+      ],
+      "error": null,
+      "seconds": 2.8,
+      "usage": {
+        "prompt": 7067,
+        "completion": 239,
+        "reasoning": 54,
+        "steps": 3
+      },
+      "expected": [
+        "borrow_book",
+        "check_book_availability"
+      ],
+      "first_tool": "check_book_availability",
+      "matched": true
+    },
+    {
+      "prompt": "Return my copy of book 3",
+      "tools": [
+        "return_book"
+      ],
+      "error": null,
+      "seconds": 1.54,
+      "usage": {
+        "prompt": 4640,
+        "completion": 117,
+        "reasoning": 23,
+        "steps": 2
+      },
+      "expected": [
+        "get_current_borrowed_books",
+        "return_book"
+      ],
+      "first_tool": "return_book",
+      "matched": true
+    },
+    {
+      "prompt": "Renew book 3 for me",
+      "tools": [
+        "renew_book"
+      ],
+      "error": null,
+      "seconds": 2.04,
+      "usage": {
+        "prompt": 4517,
+        "completion": 156,
+        "reasoning": 77,
+        "steps": 2
+      },
+      "expected": [
+        "renew_book"
+      ],
+      "first_tool": "renew_book",
+      "matched": true
+    },
+    {
+      "prompt": "What am I currently borrowing?",
+      "tools": [
+        "get_current_borrowed_books"
+      ],
+      "error": null,
+      "seconds": 1.47,
+      "usage": {
+        "prompt": 4443,
+        "completion": 62,
+        "reasoning": 14,
+        "steps": 2
+      },
+      "expected": [
+        "get_current_borrowed_books"
+      ],
+      "first_tool": "get_current_borrowed_books",
+      "matched": true
+    },
+    {
+      "prompt": "Is anything overdue on my account?",
+      "tools": [
+        "get_overdue_books"
+      ],
+      "error": null,
+      "seconds": 1.55,
+      "usage": {
+        "prompt": 4445,
+        "completion": 82,
+        "reasoning": 6,
+        "steps": 2
+      },
+      "expected": [
+        "get_current_borrowed_books",
+        "get_overdue_books"
+      ],
+      "first_tool": "get_overdue_books",
+      "matched": true
+    },
+    {
+      "prompt": "Show me the details of my loan for book 7",
+      "tools": [
+        "get_book_loan_details"
+      ],
+      "error": null,
+      "seconds": 1.89,
+      "usage": {
+        "prompt": 4498,
+        "completion": 128,
+        "reasoning": 9,
+        "steps": 2
+      },
+      "expected": [
+        "get_book_loan_details"
+      ],
+      "first_tool": "get_book_loan_details",
+      "matched": true
+    },
+    {
+      "prompt": "How much fine do I owe for book 7?",
+      "tools": [
+        "calculate_fine"
+      ],
+      "error": null,
+      "seconds": 2.18,
+      "usage": {
+        "prompt": 4515,
+        "completion": 203,
+        "reasoning": 69,
+        "steps": 2
+      },
+      "expected": [
+        "calculate_fine",
+        "get_book_loan_details"
+      ],
+      "first_tool": "calculate_fine",
+      "matched": true
+    },
+    {
+      "prompt": "Do I have unpaid fines?",
+      "tools": [
+        "get_unpaid_fines"
+      ],
+      "error": null,
+      "seconds": 1.87,
+      "usage": {
+        "prompt": 4471,
+        "completion": 58,
+        "reasoning": 14,
+        "steps": 2
+      },
+      "expected": [
+        "get_unpaid_fines"
+      ],
+      "first_tool": "get_unpaid_fines",
+      "matched": true
+    },
+    {
+      "prompt": "Pay the fine for book 7",
+      "tools": [
+        "get_unpaid_fines",
+        "get_book_loan_details",
+        "calculate_fine"
+      ],
+      "error": null,
+      "seconds": 2.66,
+      "usage": {
+        "prompt": 7120,
+        "completion": 338,
+        "reasoning": 123,
+        "steps": 3
+      },
+      "expected": [
+        "get_unpaid_fines",
+        "pay_fine"
+      ],
+      "first_tool": "get_unpaid_fines",
+      "matched": true
+    },
+    {
+      "prompt": "Show my borrowing history",
+      "tools": [
+        "get_borrow_history"
+      ],
+      "error": null,
+      "seconds": 2.06,
+      "usage": {
+        "prompt": 4555,
+        "completion": 205,
+        "reasoning": 61,
+        "steps": 2
+      },
+      "expected": [
+        "get_borrow_history"
+      ],
+      "first_tool": "get_borrow_history",
+      "matched": true
+    },
+    {
+      "prompt": "Which books are on the shelf right now?",
+      "tools": [
+        "list_available_books"
+      ],
+      "error": null,
+      "seconds": 2.61,
+      "usage": {
+        "prompt": 5067,
+        "completion": 400,
+        "reasoning": 0,
+        "steps": 2
+      },
+      "expected": [
+        "list_available_books"
+      ],
+      "first_tool": "list_available_books",
+      "matched": true
+    },
+    {
+      "prompt": "Put me in line for book 9",
+      "tools": [
+        "request_book"
+      ],
+      "error": null,
+      "seconds": 2.28,
+      "usage": {
+        "prompt": 4635,
+        "completion": 251,
+        "reasoning": 147,
+        "steps": 2
+      },
+      "expected": [
+        "request_book"
+      ],
+      "first_tool": "request_book",
+      "matched": true
+    },
+    {
+      "prompt": "The library does not own Deep Sea Chronicles, please ask for it",
+      "tools": [
+        "search_books",
+        "request_book"
+      ],
+      "error": null,
+      "seconds": 3.71,
+      "usage": {
+        "prompt": 7322,
+        "completion": 402,
+        "reasoning": 251,
+        "steps": 3
+      },
+      "expected": [
+        "request_book",
+        "search_books"
+      ],
+      "first_tool": "search_books",
+      "matched": true
+    },
+    {
+      "prompt": "What am I waiting for?",
+      "tools": [
+        "get_my_holds"
+      ],
+      "error": null,
+      "seconds": 1.69,
+      "usage": {
+        "prompt": 4511,
+        "completion": 143,
+        "reasoning": 28,
+        "steps": 2
+      },
+      "expected": [
+        "get_my_holds"
+      ],
+      "first_tool": "get_my_holds",
+      "matched": true
+    },
+    {
+      "prompt": "Cancel my hold number 3",
+      "tools": [
+        "get_my_holds"
+      ],
+      "error": null,
+      "seconds": 1.98,
+      "usage": {
+        "prompt": 4598,
+        "completion": 222,
+        "reasoning": 133,
+        "steps": 2
+      },
+      "expected": [
+        "cancel_hold",
+        "get_my_holds"
+      ],
+      "first_tool": "get_my_holds",
+      "matched": true
+    },
+    {
+      "prompt": "推荐一本讲睡眠与记忆的科普书",
+      "tools": [
+        "search_books_semantic",
+        "search_books",
+        "search_books"
+      ],
+      "error": null,
+      "seconds": 3.53,
+      "usage": {
+        "prompt": 7418,
+        "completion": 381,
+        "reasoning": 172,
+        "steps": 3
+      },
+      "expected": [
+        "list_available_books",
+        "search_books_semantic"
+      ],
+      "first_tool": "search_books_semantic",
+      "matched": true
+    }
+  ]
+}
