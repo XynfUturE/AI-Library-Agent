@@ -466,7 +466,29 @@
     display: flex;
     align-items: flex-end;
     padding: 12px;
-    color: rgba(255, 255, 255, 0.9);
+    color: hsl(var(--cover-hue, 220) 26% 42%);
+    background: linear-gradient(
+        160deg,
+        hsl(var(--cover-hue, 220) 24% 95%),
+        hsl(var(--cover-hue, 220) 22% 90%)
+    );
+    box-shadow: inset 3px 0 0 hsl(var(--cover-hue, 220) 40% 72%);
+}
+
+
+/* Placeholder art is the loudest thing on the page, so it stays quiet:
+   same hue per title, almost no saturation. */
+
+[data-theme="dark"] .book-cover,
+[data-theme="dark"] .book-thumb {
+
+    color: hsl(var(--cover-hue, 220) 40% 74%);
+    background: linear-gradient(
+        160deg,
+        hsl(var(--cover-hue, 220) 16% 20%),
+        hsl(var(--cover-hue, 220) 14% 15%)
+    );
+    box-shadow: inset 3px 0 0 hsl(var(--cover-hue, 220) 40% 40%);
 }
 
 
@@ -601,7 +623,13 @@
     display: flex;
     align-items: flex-end;
     padding: 6px;
-    color: rgba(255, 255, 255, 0.9);
+    color: hsl(var(--cover-hue, 220) 26% 42%);
+    background: linear-gradient(
+        160deg,
+        hsl(var(--cover-hue, 220) 24% 95%),
+        hsl(var(--cover-hue, 220) 22% 90%)
+    );
+    box-shadow: inset 2px 0 0 hsl(var(--cover-hue, 220) 40% 72%);
 }
 
 

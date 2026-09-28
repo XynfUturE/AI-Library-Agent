@@ -129,7 +129,9 @@ function coverStyle(title) {
 
     const hue = hash % 360;
 
-    return `background: linear-gradient(135deg, hsl(${hue} 62% 52%), hsl(${(hue + 45) % 360} 62% 40%));`;
+    // Only the hue travels in the markup; the tint itself lives in
+    // catalog.css so light and dark themes can pick their own.
+    return `--cover-hue: ${hue};`;
 }
 
 

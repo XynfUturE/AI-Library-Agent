@@ -25,73 +25,70 @@
        Semantic surfaces (light)
        ---------------------------------------------------- */
 
-    --bg: #f1f5f9;
-    --bg-inset: #e7edf5;
+    --bg: #f5f5f7;
+    --bg-inset: #ececf0;
     --surface: #ffffff;
-    --surface-2: #f8fafc;
-    --surface-hover: #f1f5f9;
-    --border: #e2e8f0;
-    --border-strong: #cbd5e1;
+    --surface-2: #f5f5f7;
+    --surface-hover: #f0f0f2;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-strong: rgba(0, 0, 0, 0.16);
 
-    --text-1: #0f172a;
-    --text-2: #334155;
-    --text-3: #64748b;
-    --text-4: #94a3b8;
+    --text-1: #1d1d1f;
+    --text-2: #424245;
+    --text-3: #6e6e73;
+    --text-4: #86868b;
 
-    --primary: #2563eb;
-    --primary-strong: #1d4ed8;
-    --primary-soft: #eff6ff;
-    --primary-soft-border: #dbeafe;
+    --primary: #0071e3;
+    --primary-strong: #0063c8;
+    --primary-soft: #f0f7ff;
+    --primary-soft-border: rgba(0, 113, 227, 0.24);
     --on-primary: #ffffff;
 
-    --accent-gradient: linear-gradient(
-        135deg,
-        #2563eb 0%,
-        #4f46e5 100%
-    );
+    --accent-gradient: linear-gradient(135deg, #0071e3 0%, #0071e3 100%);
 
-    --brand-gradient: linear-gradient(
-        150deg,
-        #0f172a 0%,
-        #1e3a8a 58%,
-        #2563eb 125%
-    );
+    /* Flat, not gradient: the brand panel reads as a black product
+       photograph rather than a 2016 SaaS hero. */
+    --brand-gradient: linear-gradient(160deg, #1d1d1f 0%, #1d1d1f 100%);
 
     /* ----------------------------------------------------
        Status colors
        ---------------------------------------------------- */
 
-    --success: #16a34a;
-    --success-soft: #f0fdf4;
-    --success-border: #bbf7d0;
+    --success: #1d8a4e;
+    --success-soft: #f1f8f3;
+    --success-border: rgba(29, 138, 78, 0.22);
 
-    --warning: #b45309;
-    --warning-strong: #d97706;
-    --warning-soft: #fffbeb;
-    --warning-border: #fde68a;
+    --warning: #a8580a;
+    --warning-strong: #c26a0c;
+    --warning-soft: #fdf6ee;
+    --warning-border: rgba(168, 88, 10, 0.22);
 
-    --danger: #dc2626;
-    --danger-strong: #b91c1c;
-    --danger-soft: #fef2f2;
-    --danger-border: #fecaca;
+    --danger: #c3362f;
+    --danger-strong: #a92b25;
+    --danger-soft: #fdf2f1;
+    --danger-border: rgba(195, 54, 47, 0.22);
 
     /* ----------------------------------------------------
        Shape & elevation
        ---------------------------------------------------- */
 
-    --radius-xs: 6px;
-    --radius-sm: 8px;
-    --radius: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 24px;
+    --radius-xs: 8px;
+    --radius-sm: 10px;
+    --radius: 16px;
+    --radius-lg: 22px;
+    --radius-xl: 30px;
     --radius-full: 999px;
 
-    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
-    --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.14);
-    --shadow-primary: 0 8px 20px rgba(37, 99, 235, 0.28);
+    /* Two layers: a hairline contact shadow plus a wide ambient one.
+       A single big blur is what makes web cards look like web cards. */
+    --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.03);
+    --shadow-md: 0 1px 1px rgba(0, 0, 0, 0.03),
+        0 6px 18px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.04),
+        0 18px 48px rgba(0, 0, 0, 0.1);
+    --shadow-primary: 0 1px 2px rgba(0, 0, 0, 0.08);
 
-    --ring: 0 0 0 3px rgba(59, 130, 246, 0.22);
+    --ring: 0 0 0 4px rgba(0, 113, 227, 0.15);
 
     /* ----------------------------------------------------
        Layout metrics
@@ -107,8 +104,9 @@
        Typography
        ---------------------------------------------------- */
 
-    --font-sans: ui-sans-serif, system-ui, -apple-system,
-        "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        ui-sans-serif, system-ui, "Inter", "Segoe UI", Roboto,
+        "Helvetica Neue", Arial,
         sans-serif;
 
     --font-mono: ui-monospace, "Cascadia Code", "SF Mono",
@@ -123,10 +121,30 @@
     --text-2xl: 1.5rem;
     --text-3xl: 1.875rem;
 
-    --speed-fast: 140ms;
-    --speed: 200ms;
-    --speed-slow: 320ms;
-    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --speed-fast: 180ms;
+    --speed: 260ms;
+    --speed-slow: 420ms;
+
+    /* Long deceleration tail: the iOS sheet curve, not a symmetric
+       ease-in-out. */
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+
+    /* Mild overshoot, for things that appear. */
+    --ease-spring: linear(
+        0, 0.0039 0.9%, 0.0157 1.9%, 0.041 3.1%, 0.093 5.6%,
+        0.163 8%, 0.253 10.9%, 0.362 14.3%, 0.494 18.4%, 0.72 25.5%,
+        1 35%, 1.24 45%, 1.34 51%, 1.32 57%, 1.19 65%, 1.06 71%,
+        0.99 76%, 0.985 81%, 1.02 90%, 1
+    );
+
+    /* The page wash sits behind the translucent chrome; without it the
+       backdrop blur has nothing to show. */
+    --page-wash: radial-gradient(
+        120% 80% at 15% 0%,
+        #ffffff 0%,
+        #f7f7f9 38%,
+        #eeeef2 100%
+    );
 }
 
 
@@ -138,36 +156,35 @@
 
     color-scheme: dark;
 
-    --bg: #0b1220;
-    --bg-inset: #0e1728;
-    --surface: #111b2e;
-    --surface-2: #16223a;
-    --surface-hover: #1b2942;
-    --border: #24324c;
-    --border-strong: #33455f;
+    --bg: #000000;
+    --bg-inset: #0b0b0d;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --surface-hover: #2c2c2e;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.2);
 
-    --text-1: #e6edf7;
-    --text-2: #c3cfe2;
-    --text-3: #8fa1ba;
-    --text-4: #64748b;
+    --text-1: #f5f5f7;
+    --text-2: #d1d1d6;
+    --text-3: #98989d;
+    --text-4: #6e6e73;
 
-    --primary: #3b82f6;
-    --primary-strong: #60a5fa;
-    --primary-soft: rgba(59, 130, 246, 0.14);
-    --primary-soft-border: rgba(59, 130, 246, 0.32);
+    --primary: #0a84ff;
+    --primary-strong: #409cff;
+    --primary-soft: rgba(10, 132, 255, 0.16);
+    --primary-soft-border: rgba(10, 132, 255, 0.3);
     --on-primary: #ffffff;
 
     --accent-gradient: linear-gradient(
         135deg,
-        #3b82f6 0%,
-        #6366f1 100%
+        #0a84ff 0%,
+        #0a84ff 100%
     );
 
     --brand-gradient: linear-gradient(
-        150deg,
-        #0e1526 0%,
-        #16255c 58%,
-        #1d4ed8 135%
+        160deg,
+        #1c1c1e 0%,
+        #1c1c1e 100%
     );
 
     --success: #4ade80;
@@ -184,10 +201,19 @@
     --danger-soft: rgba(239, 68, 68, 0.12);
     --danger-border: rgba(248, 113, 113, 0.35);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.55);
-    --shadow-primary: 0 8px 22px rgba(37, 99, 235, 0.35);
+    --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.6);
+    --shadow-md: 0 1px 1px rgba(0, 0, 0, 0.6),
+        0 6px 18px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.6),
+        0 18px 48px rgba(0, 0, 0, 0.7);
+    --shadow-primary: 0 1px 2px rgba(0, 0, 0, 0.6);
 
-    --ring: 0 0 0 3px rgba(96, 165, 250, 0.35);
+    --ring: 0 0 0 4px rgba(10, 132, 255, 0.28);
+
+    --page-wash: radial-gradient(
+        120% 80% at 15% 0%,
+        #1c1c1e 0%,
+        #0d0d0f 45%,
+        #000000 100%
+    );
 }

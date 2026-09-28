@@ -1,0 +1,346 @@
+/* ============================================================
+   POLISH LAYER — loaded last, on purpose.
+
+   The palette, radii, shadow recipe, type stack and easing live in
+   tokens.css: those are values, and they restyle the whole app on
+   their own. What is left here are the handful of details that are
+   not a value of any single component: the translucent chrome, the
+   press feedback, the spring on things that appear, and the quiet
+   book-cover treatment. Keeping them in one file means this whole
+   pass is one file to revert.
+   ============================================================ */
+
+/* ---------- Translucent chrome ---------- */
+
+.sidebar,
+.app-topbar {
+
+    background: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] .app-topbar {
+
+    background: rgba(28, 28, 30, 0.72);
+}
+
+.app-topbar {
+
+    border-bottom-width: 1px;
+    box-shadow: none;
+}
+
+.topbar-title,
+.sidebar-title,
+.page-sub {
+
+    letter-spacing: -0.01em;
+}
+
+.sidebar-section {
+
+    color: var(--text-4);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+}
+
+/* ---------- Press and hover feedback ---------- */
+
+button,
+.nav-item,
+.shortcut-item,
+.suggestion-card,
+.cat-select,
+.book-card {
+
+    transition: transform var(--speed-fast) var(--ease),
+        background-color var(--speed-fast) var(--ease),
+        border-color var(--speed-fast) var(--ease),
+        box-shadow var(--speed) var(--ease);
+}
+
+button:active,
+.nav-item:active,
+.shortcut-item:active,
+.suggestion-card:active {
+
+    transform: scale(0.97);
+}
+
+.stat-card:hover,
+.card:hover,
+.suggestion-card:hover,
+.book-card:hover {
+
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+}
+
+/* ---------- Type and controls ---------- */
+
+.page-header h1,
+.page-title,
+.chat-welcome h1,
+.chat-welcome h2,
+.brand-panel h1,
+.brand-panel-title {
+
+    font-weight: 600;
+    letter-spacing: -0.028em;
+}
+
+.badge,
+.button,
+.primary-button,
+.secondary-button {
+
+    letter-spacing: -0.005em;
+    font-weight: 500;
+}
+
+.button,
+.primary-button,
+.secondary-button {
+
+    border-radius: 980px;
+}
+
+.button-secondary,
+.secondary-button {
+
+    background: rgba(0, 0, 0, 0.05);
+    border-color: transparent;
+    color: var(--text-1);
+}
+
+[data-theme="dark"] .button-secondary,
+[data-theme="dark"] .secondary-button {
+
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.button-ghost,
+.icon-button {
+
+    border-radius: var(--radius-sm);
+    color: var(--text-3);
+}
+
+.icon-button.active {
+
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-1);
+}
+
+.nav-item.active {
+
+    background: rgba(0, 0, 0, 0.055);
+    color: var(--text-1);
+}
+
+.nav-item.active .nav-label {
+
+    font-weight: 600;
+}
+
+[data-theme="dark"] .nav-item.active,
+[data-theme="dark"] .icon-button.active,
+[data-theme="dark"] .cat-select.active {
+
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.cat-select.active {
+
+    background: rgba(0, 0, 0, 0.055);
+    color: var(--text-1);
+    font-weight: 600;
+}
+
+.cat-select {
+
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+}
+
+/* ---------- Chat ---------- */
+
+.welcome-icon {
+
+    border-radius: 22px;
+    box-shadow: var(--shadow-md);
+}
+
+.chat-welcome p {
+
+    color: var(--text-3);
+}
+
+.suggestion-card {
+
+    background: rgba(255, 255, 255, 0.86);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .suggestion-card {
+
+    background: rgba(28, 28, 30, 0.86);
+}
+
+.suggestion-icon {
+
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.045);
+    color: var(--text-2);
+}
+
+.composer-shell {
+
+    background: rgba(255, 255, 255, 0.92);
+    border-color: var(--border-strong);
+    border-radius: 24px;
+    box-shadow: var(--shadow-md);
+}
+
+[data-theme="dark"] .composer-shell {
+
+    background: rgba(28, 28, 30, 0.92);
+}
+
+.composer-shell:focus-within {
+
+    border-color: var(--primary);
+    box-shadow: var(--ring), var(--shadow-md);
+}
+
+.send-button {
+
+    border-radius: 999px;
+}
+
+/* ---------- Catalog ---------- */
+
+.catalog-search-shell,
+select.catalog-availability {
+
+    border-radius: 980px;
+    border-color: var(--border);
+}
+
+.catalog-sidebar,
+.category-nav {
+
+    border-color: var(--border);
+    box-shadow: none;
+}
+
+.book-card {
+
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+}
+
+.book-title {
+
+    font-weight: 600;
+    letter-spacing: -0.012em;
+}
+
+.book-category {
+
+    color: var(--text-4);
+    letter-spacing: 0.02em;
+}
+
+/* ---------- Auth ---------- */
+
+/* On the flat black panel the old circles read as smudges, so they
+   become barely-there depth. */
+.brand-panel-decoration {
+
+    background: rgba(255, 255, 255, 0.035);
+    border-color: rgba(255, 255, 255, 0.05);
+}
+
+.auth-eyebrow {
+
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.14em;
+}
+
+/* ---------- Tables ---------- */
+
+.history-table th {
+
+    color: var(--text-4);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+}
+
+/* ---------- Motion: things that appear ---------- */
+
+@keyframes rise-in {
+
+    from {
+
+        opacity: 0;
+        transform: translateY(8px) scale(0.995);
+    }
+}
+
+.card,
+.stat-card,
+.suggestion-card,
+.book-card,
+.loan-row,
+.message {
+
+    animation: rise-in var(--speed-slow) var(--ease-spring) both;
+}
+
+.dialog,
+.toast {
+
+    transition: opacity var(--speed) var(--ease),
+        transform var(--speed) var(--ease);
+}
+
+@starting-style {
+
+    .dialog,
+    .toast {
+
+        opacity: 0;
+        transform: translateY(6px) scale(0.98);
+    }
+}
+
+::selection {
+
+    background: rgba(0, 113, 227, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .card,
+    .stat-card,
+    .suggestion-card,
+    .book-card,
+    .loan-row,
+    .message {
+
+        animation: none;
+    }
+
+    button:active,
+    .nav-item:active,
+    .shortcut-item:active,
+    .suggestion-card:active {
+
+        transform: none;
+    }
+}
