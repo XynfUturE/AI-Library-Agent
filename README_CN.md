@@ -12,13 +12,15 @@
 
 <img src="docs/screenshots/02-chat.png" width="760" alt="聊天界面">
 
-### 一条命令跑起来
+### 本地跑起来
 
 ```bash
 docker build -t ai-library-agent . && docker run -p 8000:8000 -e DEEPSEEK_API_KEY=你的key ai-library-agent
 ```
 
-打开 http://127.0.0.1:8000 ，点 **Continue as Demo** 即可。部署同样简单：`render.yaml` 是 Render 的一键蓝图，Dockerfile 已适配 Zeabur/Render 注入的 `$PORT`。
+打开 http://127.0.0.1:8000 ，点 **Continue as Demo**。这个地址只存在于你自己的电脑上；要发给别人的链接请用上面的在线演示。
+
+自己部署：`render.yaml` 是 Render 的一键蓝图，Dockerfile 已适配 `$PORT`，Zeabur 或任何 Docker 主机同样可用。
 
 ### 这些是普通"荐书机器人"做不到的
 

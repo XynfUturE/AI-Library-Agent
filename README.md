@@ -12,13 +12,15 @@ A conversational front desk for a library. Readers ask in plain language and the
 
 <img src="docs/screenshots/02-chat.png" width="760" alt="Chat view with suggested actions">
 
-### Run it in one command
+### Run it locally
 
 ```bash
 docker build -t ai-library-agent . && docker run -p 8000:8000 -e DEEPSEEK_API_KEY=your_key ai-library-agent
 ```
 
-Open http://127.0.0.1:8000 and press **Continue as Demo**. Deploying is the same story: `render.yaml` is a one-click Render blueprint, and the Dockerfile honours `$PORT` on Zeabur/Render.
+Open http://127.0.0.1:8000 and press **Continue as Demo**. That address only exists on your own machine — for a link you can send to someone, use the hosted demo above.
+
+To deploy your own: `render.yaml` is a one-click Render blueprint, and the Dockerfile honours `$PORT`, so Zeabur and any other Docker host work as well.
 
 ### What this does that a book-recommendation bot cannot
 
