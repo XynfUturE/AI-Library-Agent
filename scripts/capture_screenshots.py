@@ -146,7 +146,7 @@ def main(argv=None):
 
     parser.add_argument(
         "--base-url",
-        default="http://127.0.0.1:8000/",
+        default="http://localhost:8000/",
     )
 
     args = parser.parse_args(
