@@ -1151,7 +1151,7 @@ GitHub Actions 会在每次 push 与 pull request 上运行同一命令（`.gith
 python scripts/eval_agent.py --json docs/eval-results.json
 
 # 重新生成截图（需要服务已启动 + playwright）
-pip install -r requirements-dev.txt
+pip install playwright
 python scripts/capture_screenshots.py
 ```
 

@@ -829,7 +829,7 @@ GitHub Actions runs the same command on every push and pull request (`.github/wo
 python scripts/eval_agent.py --json docs/eval-results.json
 
 # Regenerate the screenshots (needs a running server and playwright)
-pip install -r requirements-dev.txt
+pip install playwright
 python scripts/capture_screenshots.py
 ```
 

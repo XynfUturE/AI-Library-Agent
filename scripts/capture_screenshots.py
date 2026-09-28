@@ -1,10 +1,12 @@
 """Capture README screenshots from a locally running server.
 
+    pip install playwright
     python -m uvicorn web.app:app --port 8000
     python scripts/capture_screenshots.py
 
 Uses a Chromium browser already installed on the machine (Edge or
-Chrome), so nothing has to be downloaded.
+Chrome), so no browser binaries are downloaded. It is deliberately not
+in requirements-dev.txt: the test suite does not need it.
 """
 
 import argparse
