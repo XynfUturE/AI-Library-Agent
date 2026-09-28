@@ -6,6 +6,9 @@ A conversational front desk for a library. Readers ask in plain language and the
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://ai-library-agent-xof2.onrender.com)
+
+**Live demo:** https://ai-library-agent-xof2.onrender.com — press **Continue as Demo**. The free tier sleeps after 15 minutes idle, so the first request can take ~30 seconds.
 
 <img src="docs/screenshots/02-chat.png" width="760" alt="Chat view with suggested actions">
 
@@ -764,6 +767,8 @@ python scripts/mcp_server.py --user-id 1
 MCP has no session concept, so the server is bound to one library user at startup and injects that user id into every call, exactly like the web chat does. The MCP SDK pulls in about ten extra packages, which is why it lives in a separate requirements file.
 
 ### Option E: Deploy
+
+The reference instance runs on Render at https://ai-library-agent-xof2.onrender.com.
 
 `render.yaml` is a Render blueprint for this repository: it builds the `Dockerfile`, sets the health check to `/`, and leaves `DEEPSEEK_API_KEY` to be filled in from the dashboard (`sync: false`), so no secret is committed.
 

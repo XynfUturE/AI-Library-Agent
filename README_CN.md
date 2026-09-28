@@ -6,6 +6,9 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://ai-library-agent-xof2.onrender.com)
+
+**在线演示：** https://ai-library-agent-xof2.onrender.com —— 点 **Continue as Demo** 即可。免费层闲置 15 分钟会休眠，第一次访问可能要等 30 秒左右。
 
 <img src="docs/screenshots/02-chat.png" width="760" alt="聊天界面">
 
@@ -1085,6 +1088,8 @@ python scripts/mcp_server.py --user-id 1
 MCP 没有会话概念，因此服务端在启动时绑定一个图书馆用户，并在每次调用中注入该 user_id，逻辑与 Web 聊天一致。MCP SDK 会额外引入约十个依赖包，所以单独放在 requirements-mcp.txt 中。
 
 ### 方式 E：部署
+
+线上参考实例跑在 Render：https://ai-library-agent-xof2.onrender.com
 
 `render.yaml` 是本仓库的 Render 蓝图：构建 `Dockerfile`、健康检查指向 `/`，并把 `DEEPSEEK_API_KEY` 留给控制台填写（`sync: false`），不会把密钥提交进仓库。
 
