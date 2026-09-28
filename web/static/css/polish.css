@@ -1,104 +1,321 @@
 /* ============================================================
    POLISH LAYER — loaded last, on purpose.
 
-   The palette, radii, shadow recipe, type stack and easing live in
-   tokens.css: those are values, and they restyle the whole app on
-   their own. What is left here are the handful of details that are
-   not a value of any single component: the translucent chrome, the
-   press feedback, the spring on things that appear, and the quiet
-   book-cover treatment. Keeping them in one file means this whole
-   pass is one file to revert.
+   Values (palette, type stack, radii, no shadows, springs) live in
+   tokens.css. This file is the layer that applies the design
+   principles from the apple-design skill, which is itself a
+   translation of three WWDC talks:
+
+     - Designing Fluid Interfaces  -> respond on pointer-down, springs
+       instead of fixed durations, materials where layers overlap
+     - The Details of UI Typography -> tracking is size-specific,
+       leading tracks size inversely, respect the text-size setting
+     - Principles of Great Design   -> restraint, hierarchy from
+       weight/size/grayscale, nothing decorative
+
+   Rules that are a value of no single component end up here, so the
+   whole pass stays one file to revert.
    ============================================================ */
 
-/* ---------- Translucent chrome ---------- */
-
-.sidebar,
-.app-topbar {
-
-    background: rgba(255, 255, 255, 0.72);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    backdrop-filter: saturate(180%) blur(20px);
-    border-color: var(--border);
-}
-
-[data-theme="dark"] .sidebar,
-[data-theme="dark"] .app-topbar {
-
-    background: rgba(28, 28, 30, 0.72);
-}
-
-.app-topbar {
-
-    border-bottom-width: 1px;
-    box-shadow: none;
-}
-
-.topbar-title,
-.sidebar-title,
-.page-sub {
-
-    letter-spacing: -0.01em;
-}
-
-.sidebar-section {
-
-    color: var(--text-4);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-}
-
-/* ---------- Press and hover feedback ---------- */
-
-button,
-.nav-item,
-.shortcut-item,
-.suggestion-card,
-.cat-select,
-.book-card {
-
-    transition: transform var(--speed-fast) var(--ease),
-        background-color var(--speed-fast) var(--ease),
-        border-color var(--speed-fast) var(--ease),
-        box-shadow var(--speed) var(--ease);
-}
-
-button:active,
-.nav-item:active,
-.shortcut-item:active,
-.suggestion-card:active {
-
-    transform: scale(0.97);
-}
-
-.stat-card:hover,
-.card:hover,
-.suggestion-card:hover,
-.book-card:hover {
-
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-1px);
-}
-
-/* ---------- Type and controls ---------- */
+/* ------------------------------------------------------------
+   1. TYPE — tracking per size, leading per size, tabular figures
+   ------------------------------------------------------------ */
 
 .page-header h1,
 .page-title,
 .chat-welcome h1,
-.chat-welcome h2,
-.brand-panel h1,
-.brand-panel-title {
+.chat-welcome h2 {
 
+    font-size: 2.5rem;
+    line-height: 1.1;
     font-weight: 600;
-    letter-spacing: -0.028em;
+    letter-spacing: var(--track-display);
 }
 
-.badge,
-.button,
-.primary-button,
-.secondary-button {
+.page-sub,
+.chat-welcome p {
 
-    letter-spacing: -0.005em;
-    font-weight: 500;
+    font-size: 1.1875rem;
+    line-height: 1.4211;
+    letter-spacing: 0;
+    color: var(--text-3);
+}
+
+.card-title,
+.card-head h2,
+.card-head h3 {
+
+    font-size: 1.3125rem;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+}
+
+.topbar-title,
+.sidebar-title {
+
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: var(--track-body);
+}
+
+/* Small text gets slightly positive tracking: tight tracking breaks
+   legibility as type shrinks, the mirror of display sizes. */
+.sidebar-section,
+.history-table th,
+.badge,
+.composer-hint,
+.catalog-results-count {
+
+    letter-spacing: var(--track-micro);
+}
+
+.sidebar-section {
+
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-4);
+}
+
+/* Numbers line up in columns instead of dancing: aligned digits are
+   a craft detail that costs nothing. */
+.stat-value,
+.stat-card strong,
+.count-badge,
+.cat-count,
+.history-table td,
+.loan-meta,
+.fine-meta,
+.book-card-footer,
+time {
+
+    font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------
+   2. RESPONSE — feedback lives on the press, and it is instant
+   (Fluid Interfaces: latency on the input path is a regression)
+   ------------------------------------------------------------ */
+
+button,
+.nav-item,
+.shortcut-item,
+.cat-select,
+.suggestion-card,
+.book-card,
+.button,
+.icon-button {
+
+    transition: transform 100ms ease-out,
+        background-color 150ms var(--ease),
+        border-color 150ms var(--ease),
+        color 150ms var(--ease);
+}
+
+button:active,
+.button:active,
+.icon-button:active,
+.nav-item:active,
+.shortcut-item:active,
+.cat-select:active,
+.suggestion-card:active,
+.book-card:active {
+
+    transform: scale(0.97);
+}
+
+/* Hover is a hint, not feedback: pointer devices only, one pixel of
+   lift, no colour carnival. */
+@media (hover: hover) {
+
+    .button:hover,
+    .primary-button:hover,
+    .secondary-button:hover,
+    .icon-button:hover {
+
+        background-color: var(--surface-2);
+    }
+
+    .button-primary:hover,
+    .primary-button:hover {
+
+        background-color: var(--primary-strong);
+    }
+
+    .suggestion-card:hover,
+    .book-card:hover {
+
+        transform: translateY(-1px);
+        border-color: var(--text-4);
+    }
+
+    .nav-item:hover,
+    .shortcut-item:hover {
+
+        background-color: var(--surface-2);
+        color: var(--text-1);
+    }
+
+    .history-table tbody tr:hover,
+    .loan-row:hover,
+    .fine-row:hover {
+
+        background-color: var(--surface-2);
+    }
+}
+
+/* ------------------------------------------------------------
+   3. HIERARCHY FROM STRUCTURE, NOT DECORATION
+   ------------------------------------------------------------ */
+
+/* The sidebar is a structural region: heavier by tint, flat, no
+   glass, because it never overlaps content. */
+.sidebar {
+
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+}
+
+[data-theme="dark"] .sidebar {
+
+    background: #0a0a0b;
+}
+
+/* The topbar does not float over content either, so it stays flat:
+   95% white and one hairline. Glass is reserved for real overlap. */
+.app-topbar {
+
+    background: rgba(255, 255, 255, 0.95);
+    border-bottom: 1px solid var(--border);
+}
+
+[data-theme="dark"] .app-topbar {
+
+    background: rgba(0, 0, 0, 0.95);
+}
+
+.sidebar-nav .nav-item.active {
+
+    background: transparent;
+    color: var(--text-1);
+}
+
+.sidebar-nav .nav-item.active .nav-label {
+
+    font-weight: 600;
+}
+
+.sidebar-nav .nav-item,
+.sidebar-nav .shortcut-item {
+
+    border-radius: var(--radius-xs);
+    color: var(--text-3);
+    font-size: 0.875rem;
+}
+
+::selection {
+
+    background: rgba(0, 113, 227, 0.18);
+}
+
+/* ------------------------------------------------------------
+   4. FOCUS — an outline, like the platform
+   ------------------------------------------------------------ */
+
+:focus-visible {
+
+    outline: 2px solid #0071e3;
+    outline-offset: 1px;
+}
+
+.input:focus,
+.field-shell:focus-within,
+.composer-shell:focus-within {
+
+    border-color: #0071e3;
+    box-shadow: none;
+    outline: 2px solid #0071e3;
+    outline-offset: 1px;
+}
+
+/* ------------------------------------------------------------
+   5. CONTAINERS — hairlines, room to breathe, rem so a larger text
+   size scales the layout with it instead of breaking it
+   ------------------------------------------------------------ */
+
+.card,
+.auth-card,
+.stat-card,
+.catalog-sidebar,
+.category-nav,
+.book-card,
+.suggestion-card {
+
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: none;
+}
+
+.card {
+
+    padding: 2rem;
+}
+
+.card-head {
+
+    padding-bottom: 1.125rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.stat-grid,
+.suggestion-grid {
+
+    gap: 1.5rem;
+}
+
+.stat-card {
+
+    padding: 1.75rem 1.875rem;
+}
+
+/* A plain glyph reads as an icon; a tinted tile reads as decoration. */
+.stat-card .stat-icon {
+
+    border-radius: 0;
+    background: transparent;
+    color: #0066cc;
+}
+
+.stat-card.alerting .stat-icon {
+
+    background: transparent;
+    color: var(--danger);
+}
+
+.stat-card.warning .stat-icon {
+
+    background: transparent;
+    color: var(--warning);
+}
+
+.loan-row,
+.fine-row {
+
+    padding-block: 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.history-table th {
+
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-4);
+    border-bottom: 1px solid var(--border);
+}
+
+.history-table td {
+
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--border);
 }
 
 .button,
@@ -106,192 +323,281 @@ button:active,
 .secondary-button {
 
     border-radius: 980px;
+    font-size: 1.0625rem;
+    font-weight: 400;
+    box-shadow: none;
+}
+
+.button-primary,
+.primary-button {
+
+    background: #0071e3;
+    border-color: #0071e3;
+    color: #ffffff;
 }
 
 .button-secondary,
 .secondary-button {
 
-    background: rgba(0, 0, 0, 0.05);
-    border-color: transparent;
+    background: #f5f5f7;
+    border: 1px solid #d2d2d7;
     color: var(--text-1);
 }
 
 [data-theme="dark"] .button-secondary,
 [data-theme="dark"] .secondary-button {
 
-    background: rgba(255, 255, 255, 0.08);
+    background: #1d1d1f;
+    border-color: #444444;
 }
 
-.button-ghost,
-.icon-button {
+.button-small {
 
-    border-radius: var(--radius-sm);
-    color: var(--text-3);
+    font-size: 0.875rem;
+    padding-inline: 1.125rem;
+}
+
+.icon-button,
+.button-ghost {
+
+    border-radius: var(--radius-xs);
+    color: #0066cc;
 }
 
 .icon-button.active {
 
-    background: rgba(0, 0, 0, 0.06);
+    background: var(--surface-2);
     color: var(--text-1);
 }
 
-.nav-item.active {
+.badge,
+.badge-success,
+.badge-neutral,
+.badge-warning,
+.badge-danger {
 
-    background: rgba(0, 0, 0, 0.055);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-3);
+    font-size: 0.75rem;
+    font-weight: 400;
+    border-radius: 6px;
+    padding: 3px 9px;
+}
+
+.count-badge {
+
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    font-weight: 400;
+}
+
+/* ------------------------------------------------------------
+   6. MATERIALS — glass only where layers actually overlap
+   ------------------------------------------------------------ */
+
+/* Dialogs and toasts float above the page, so they get the material:
+   translucent, blurred, with the deeper shadow a larger surface
+   earns. Everything on the page layer stays flat. */
+.dialog,
+.toast {
+
+    background: rgba(255, 255, 255, 0.78);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+        0 18px 48px rgba(0, 0, 0, 0.16);
+}
+
+[data-theme="dark"] .dialog,
+[data-theme="dark"] .toast {
+
+    background: rgba(28, 28, 30, 0.78);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Dim to focus (Fluid Interfaces / materials): the page steps back,
+   the task stays. */
+.dialog-overlay {
+
+    background: rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] .dialog-overlay {
+
+    background: rgba(0, 0, 0, 0.55);
+}
+
+/* Text over a blur needs weight and contrast, not flat grey. */
+.toast,
+.dialog {
+
     color: var(--text-1);
+    font-weight: 500;
 }
 
-.nav-item.active .nav-label {
+/* Fields sit on a solid layer: stacking a light input on a light
+   translucent panel is where legibility collapses. */
+.dialog .input,
+.dialog textarea,
+.dialog select,
+.dialog .field-shell {
 
-    font-weight: 600;
+    background: var(--surface);
 }
 
-[data-theme="dark"] .nav-item.active,
-[data-theme="dark"] .icon-button.active,
-[data-theme="dark"] .cat-select.active {
+[data-theme="dark"] .dialog .input,
+[data-theme="dark"] .dialog textarea,
+[data-theme="dark"] .dialog select,
+[data-theme="dark"] .dialog .field-shell {
 
-    background: rgba(255, 255, 255, 0.1);
+    background: #1d1d1f;
 }
 
-.cat-select.active {
-
-    background: rgba(0, 0, 0, 0.055);
-    color: var(--text-1);
-    font-weight: 600;
-}
-
-.cat-select {
-
-    border-radius: var(--radius-sm);
-    color: var(--text-2);
-}
-
-/* ---------- Chat ---------- */
+/* ------------------------------------------------------------
+   7. CHAT + CATALOG detail
+   ------------------------------------------------------------ */
 
 .welcome-icon {
 
-    border-radius: 22px;
-    box-shadow: var(--shadow-md);
-}
-
-.chat-welcome p {
-
-    color: var(--text-3);
+    border-radius: 12px;
+    box-shadow: none;
 }
 
 .suggestion-card {
 
-    background: rgba(255, 255, 255, 0.86);
-    border-color: var(--border);
-    box-shadow: var(--shadow-sm);
-}
-
-[data-theme="dark"] .suggestion-card {
-
-    background: rgba(28, 28, 30, 0.86);
+    padding: 1.5rem;
 }
 
 .suggestion-icon {
 
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.045);
-    color: var(--text-2);
+    background: transparent;
+    color: #0066cc;
+}
+
+.suggestion-title {
+
+    font-size: 1.0625rem;
+    font-weight: 600;
+}
+
+.suggestion-sub,
+.composer-hint {
+
+    color: var(--text-3);
 }
 
 .composer-shell {
 
-    background: rgba(255, 255, 255, 0.92);
-    border-color: var(--border-strong);
-    border-radius: 24px;
-    box-shadow: var(--shadow-md);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
 }
 
-[data-theme="dark"] .composer-shell {
+.book-cover,
+.book-thumb {
 
-    background: rgba(28, 28, 30, 0.92);
-}
-
-.composer-shell:focus-within {
-
-    border-color: var(--primary);
-    box-shadow: var(--ring), var(--shadow-md);
-}
-
-.send-button {
-
-    border-radius: 999px;
-}
-
-/* ---------- Catalog ---------- */
-
-.catalog-search-shell,
-select.catalog-availability {
-
-    border-radius: 980px;
-    border-color: var(--border);
-}
-
-.catalog-sidebar,
-.category-nav {
-
-    border-color: var(--border);
     box-shadow: none;
-}
-
-.book-card {
-
-    border-color: var(--border);
-    box-shadow: var(--shadow-sm);
+    border-bottom: 1px solid var(--border);
 }
 
 .book-title {
 
+    font-size: 1.0625rem;
     font-weight: 600;
-    letter-spacing: -0.012em;
 }
 
+.book-author,
 .book-category {
 
-    color: var(--text-4);
-    letter-spacing: 0.02em;
+    color: var(--text-3);
 }
 
-/* ---------- Auth ---------- */
+.catalog-search-shell,
+select.catalog-availability {
 
-/* On the flat black panel the old circles read as smudges, so they
-   become barely-there depth. */
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    height: 2.75rem;
+}
+
+.catalog-sidebar .cat-select {
+
+    border-radius: var(--radius-xs);
+    color: var(--text-3);
+    font-size: 0.875rem;
+}
+
+.catalog-sidebar .cat-select.active {
+
+    background: transparent;
+    color: var(--text-1);
+    font-weight: 600;
+}
+
+.catalog-sidebar .cat-count,
+.catalog-sidebar .cat-select.active .cat-count {
+
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-3);
+    font-weight: 400;
+}
+
+/* ------------------------------------------------------------
+   8. AUTH — black hero, quiet form
+   ------------------------------------------------------------ */
+
 .brand-panel-decoration {
 
-    background: rgba(255, 255, 255, 0.035);
-    border-color: rgba(255, 255, 255, 0.05);
+    display: none;
 }
 
 .auth-eyebrow {
 
-    color: rgba(255, 255, 255, 0.55);
-    letter-spacing: 0.14em;
-}
-
-/* ---------- Tables ---------- */
-
-.history-table th {
-
-    color: var(--text-4);
+    color: #86868b;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
 }
 
-/* ---------- Motion: things that appear ---------- */
+.brand-panel h1,
+.brand-panel-title {
+
+    font-size: 3rem;
+    line-height: 1.0834;
+    font-weight: 600;
+    letter-spacing: -0.003em;
+}
+
+.brand-panel p {
+
+    color: #86868b;
+    font-size: 1.0625rem;
+}
+
+.feature-item {
+
+    font-size: 0.875rem;
+    color: #d2d2d7;
+}
+
+/* ------------------------------------------------------------
+   9. MOTION — springs for what appears, plain fades for the rest
+   ------------------------------------------------------------ */
 
 @keyframes rise-in {
 
     from {
 
         opacity: 0;
-        transform: translateY(8px) scale(0.995);
     }
 }
 
+/* Page content cross-fades: a slide would invent a direction the
+   layout does not have (spatial consistency). */
 .card,
 .stat-card,
 .suggestion-card,
@@ -299,14 +605,36 @@ select.catalog-availability {
 .loan-row,
 .message {
 
-    animation: rise-in var(--speed-slow) var(--ease-spring) both;
+    animation: rise-in var(--speed) var(--ease) both;
 }
 
-.dialog,
-.toast {
+/* Floating surfaces materialise: blur and scale arrive together, so
+   the panel reads as a material rather than a fading rectangle, and
+   it enters on the spring instead of a fixed ease. */
+@keyframes materialize {
 
-    transition: opacity var(--speed) var(--ease),
-        transform var(--speed) var(--ease);
+    from {
+
+        opacity: 0;
+        transform: scale(0.96);
+        -webkit-backdrop-filter: blur(0) saturate(180%);
+        backdrop-filter: blur(0) saturate(180%);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+
+    .dialog {
+
+        animation: materialize 400ms var(--spring-soft) both;
+        transform-origin: center;
+    }
+
+    .toast {
+
+        animation: materialize 400ms var(--spring-soft) both;
+        transform-origin: bottom center;
+    }
 }
 
 @starting-style {
@@ -315,14 +643,20 @@ select.catalog-availability {
     .toast {
 
         opacity: 0;
-        transform: translateY(6px) scale(0.98);
+        transform: scale(0.96);
     }
 }
 
-::selection {
+.dialog,
+.toast {
 
-    background: rgba(0, 113, 227, 0.18);
+    transition: opacity 250ms var(--ease),
+        transform 400ms var(--spring-soft);
 }
+
+/* ------------------------------------------------------------
+   10. ACCESSIBILITY — three independent signals, gentler not none
+   ------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
 
@@ -331,16 +665,75 @@ select.catalog-availability {
     .suggestion-card,
     .book-card,
     .loan-row,
-    .message {
+    .message,
+    .dialog,
+    .toast {
 
         animation: none;
     }
 
+    button,
+    .button,
+    .icon-button,
+    .nav-item,
+    .shortcut-item,
+    .cat-select,
+    .suggestion-card,
+    .book-card,
+    .dialog,
+    .toast {
+
+        transition: opacity 200ms ease;
+    }
+
     button:active,
+    .button:active,
+    .icon-button:active,
     .nav-item:active,
     .shortcut-item:active,
-    .suggestion-card:active {
+    .cat-select:active,
+    .suggestion-card:active,
+    .book-card:active {
 
         transform: none;
+    }
+}
+
+/* Reduced transparency: make the materials solid rather than blurry. */
+@media (prefers-reduced-transparency: reduce) {
+
+    .dialog,
+    .toast,
+    .app-topbar {
+
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+    }
+}
+
+/* More contrast: near-solid surfaces with a defined border. */
+@media (prefers-contrast: more) {
+
+    .card,
+    .stat-card,
+    .book-card,
+    .suggestion-card,
+    .catalog-sidebar,
+    .category-nav,
+    .dialog,
+    .toast {
+
+        border-color: var(--text-1);
+    }
+
+    .book-author,
+    .book-category,
+    .page-sub,
+    .suggestion-sub,
+    .composer-hint {
+
+        color: var(--text-2);
     }
 }

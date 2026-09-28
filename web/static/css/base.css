@@ -27,12 +27,14 @@ body {
 
     min-height: 100%;
     font-family: var(--font-sans);
-    font-size: var(--text-base);
-    line-height: 1.55;
+    /* 17px body with open leading. Tracking is size-specific: body
+       copy sits near zero, display sizes tighten (see polish.css). */
+    font-size: 17px;
+    line-height: 1.4706;
+    letter-spacing: var(--track-body);
+    font-optical-sizing: auto;
     color: var(--text-1);
     background: var(--bg);
-    background-image: var(--page-wash);
-    background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     transition: background var(--speed) var(--ease),
         color var(--speed) var(--ease);
