@@ -793,6 +793,8 @@ The project includes a local demo account for development and demonstration.
 
 Press **Continue as Demo** to sign in as that account. It holds the `admin` role, so the librarian views (circulation reports, cataloguing, CSV import) are reachable from the same login.
 
+<img src="docs/screenshots/01-login.png" width="520" alt="Login view with the demo entry point">
+
 The final local demo database is intentionally kept separate from the development test data.
 
 The demo environment contains a small amount of realistic borrowing data so that the AI can demonstrate:

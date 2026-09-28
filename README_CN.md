@@ -1130,6 +1130,8 @@ Zeabur：新建项目 → 从 Git 部署（Dockerfile 已处理 $PORT）
 
 点 **Continue as Demo** 即以该账号登录；它是 `admin` 角色，因此馆员视图（流通报表、图书编目、CSV 导入）在同一次登录里就能演示。
 
+<img src="docs/screenshots/01-login.png" width="520" alt="登录界面与 Demo 入口">
+
 最终 Demo 数据库保持少量真实数据，以便直接展示：
 
 * Borrowing History
