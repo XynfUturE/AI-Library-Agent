@@ -48,51 +48,10 @@
 }
 
 
-.sidebar-logo {
-
-    width: 34px;
-    height: 34px;
-    flex-shrink: 0;
-    border-radius: 10px;
-    background: var(--accent-gradient);
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: var(--shadow-primary);
-}
-
-
-.sidebar-logo .icon {
-
-    width: 19px;
-    height: 19px;
-}
-
-
 .sidebar-title {
 
-    display: flex;
-    flex-direction: column;
-    line-height: 1.25;
     white-space: nowrap;
-    opacity: 1;
-    transition: opacity var(--speed-fast) var(--ease);
-}
-
-
-.sidebar-title strong {
-
-    font-size: var(--text-md);
-    font-weight: 700;
     color: var(--text-1);
-}
-
-
-.sidebar-title span {
-
-    font-size: var(--text-xs);
-    color: var(--text-3);
 }
 
 

@@ -421,12 +421,14 @@
 
         <div class="sidebar-header">
 
+            <span class="window-controls" aria-hidden="true">
+                <i class="window-dot window-dot-close"></i>
+                <i class="window-dot window-dot-min"></i>
+                <i class="window-dot window-dot-zoom"></i>
+            </span>
+
             <div class="sidebar-brand">
-                <span class="sidebar-logo"><svg class="icon"><use href="#i-logo"></use></svg></span>
-                <span class="sidebar-title">
-                    <strong>AI Library Agent</strong>
-                    <span>Intelligent Assistant</span>
-                </span>
+                <span class="sidebar-title">AI Library Agent</span>
             </div>
 
             <button id="sidebar-collapse-button" class="icon-button sidebar-collapse-button"
@@ -548,13 +550,18 @@
 
                 <div id="chat-welcome" class="chat-welcome">
 
-                    <div class="welcome-icon">
-                        <svg class="icon"><use href="#i-sparkles"></use></svg>
+                    <div class="welcome-head">
+
+                        <div class="welcome-icon">
+                            <svg class="icon"><use href="#i-sparkles"></use></svg>
+                        </div>
+
+                        <div class="welcome-copy">
+                            <h1 id="welcome-title">Hi, how can I help?</h1>
+                            <p>Ask me to search, borrow or return books, or check your loans and fines.</p>
+                        </div>
+
                     </div>
-
-                    <h1 id="welcome-title">Hi, how can I help?</h1>
-
-                    <p>Ask me to search, borrow or return books, or check your loans and fines.</p>
 
                     <div class="suggestion-grid">
 
@@ -563,6 +570,7 @@
                             <span class="suggestion-icon"><svg class="icon icon-sm"><use href="#i-book"></use></svg></span>
                             <span class="suggestion-title">Browse available books</span>
                             <span class="suggestion-sub">See what's on the shelf</span>
+                            <svg class="icon suggestion-chevron"><use href="#i-chevron-right"></use></svg>
                         </button>
 
                         <button class="suggestion-card" type="button"
@@ -570,6 +578,7 @@
                             <span class="suggestion-icon"><svg class="icon icon-sm"><use href="#i-clock"></use></svg></span>
                             <span class="suggestion-title">My loans</span>
                             <span class="suggestion-sub">Due dates at a glance</span>
+                            <svg class="icon suggestion-chevron"><use href="#i-chevron-right"></use></svg>
                         </button>
 
                         <button class="suggestion-card" type="button"
@@ -577,6 +586,7 @@
                             <span class="suggestion-icon"><svg class="icon icon-sm"><use href="#i-alert"></use></svg></span>
                             <span class="suggestion-title">Overdue &amp; fines</span>
                             <span class="suggestion-sub">Check what needs attention</span>
+                            <svg class="icon suggestion-chevron"><use href="#i-chevron-right"></use></svg>
                         </button>
 
                         <button class="suggestion-card" type="button"
@@ -584,6 +594,7 @@
                             <span class="suggestion-icon"><svg class="icon icon-sm"><use href="#i-history"></use></svg></span>
                             <span class="suggestion-title">Borrowing history</span>
                             <span class="suggestion-sub">Everything you've borrowed</span>
+                            <svg class="icon suggestion-chevron"><use href="#i-chevron-right"></use></svg>
                         </button>
 
                     </div>

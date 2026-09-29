@@ -20,9 +20,86 @@
    1. WINDOW CHROME — sidebar and toolbar as materials
    ------------------------------------------------------------ */
 
+/* The page is a window, not a document. Grey around it, and the
+   whole app floats just inside the edge on a hairline and a shadow —
+   the difference between "a website" and "a Mac app". */
+
+body {
+
+    background: linear-gradient(
+        180deg,
+        var(--desktop) 0%,
+        var(--desktop-2) 100%
+    );
+    background-attachment: fixed;
+}
+
 .app-shell {
 
     background: var(--bg);
+    height: calc(100dvh - 24px);
+    margin: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+/* The three dots are the whole reason a screenshot reads as "a Mac
+   window" instead of "a page with a grey border". Decorative only. */
+
+.window-controls {
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.window-dot {
+
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-full);
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.14);
+}
+
+.window-dot-close {
+
+    background: #ff5f57;
+}
+
+.window-dot-min {
+
+    background: #febc2e;
+}
+
+.window-dot-zoom {
+
+    background: #28c840;
+}
+
+/* A phone has no desktop to float on. */
+@media (max-width: 880px) {
+
+    body {
+
+        background: var(--bg);
+    }
+
+    .app-shell {
+
+        height: 100dvh;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .window-controls {
+
+        display: none;
+    }
 }
 
 .sidebar {
@@ -52,11 +129,16 @@
 
     font-size: var(--text-base);
     font-weight: 600;
+    line-height: 1.2;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .sidebar-header {
 
     height: var(--topbar-height);
+    gap: 10px;
     padding-inline: 12px;
 }
 
@@ -110,6 +192,7 @@
     font-weight: 600;
     letter-spacing: var(--track-micro);
     color: var(--text-3);
+    text-transform: none;
 }
 
 [data-theme="dark"] .sidebar-nav .nav-item.active {
@@ -135,6 +218,17 @@
 .sidebar-footer {
 
     border-top: 1px solid var(--border);
+}
+
+/* The rail is too narrow for a titlebar; the chevron carries it. */
+.app-shell.sidebar-collapsed .window-controls {
+
+    display: none;
+}
+
+.app-shell.sidebar-collapsed .sidebar-collapse-button {
+
+    margin-left: 0;
 }
 
 /* ------------------------------------------------------------
@@ -537,36 +631,132 @@ select:focus {
    7. CHAT
    ------------------------------------------------------------ */
 
+/* An empty chat is a short list of things you can ask, the way a Mac
+   app lists them: leading icon, title over subtitle, a chevron. The
+   centred hero and the 2x2 tile grid were a landing page. */
+
+.chat-welcome {
+
+    max-width: 620px;
+    padding: 40px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    gap: 16px;
+}
+
+.welcome-head {
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .welcome-icon {
 
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-lg);
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
     box-shadow: none;
+}
+
+.welcome-icon .icon {
+
+    width: 16px;
+    height: 16px;
+}
+
+.chat-welcome h1 {
+
+    font-size: var(--text-lg);
+    letter-spacing: var(--track-body);
+}
+
+.chat-welcome p {
+
+    font-size: var(--text-base);
+    color: var(--text-3);
+}
+
+.suggestion-grid {
+
+    margin-top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow: hidden;
 }
 
 .suggestion-card {
 
-    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) 13px;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 10px;
+    padding: 8px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
     text-align: left;
 }
 
 .suggestion-icon {
 
+    grid-area: 1 / 1 / 3 / 2;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    border-radius: 0;
     background: transparent;
     color: var(--primary);
 }
 
 .suggestion-title {
 
+    grid-area: 1 / 2 / 2 / 3;
     font-size: var(--text-base);
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .suggestion-sub {
 
+    grid-area: 2 / 2 / 3 / 3;
     font-size: var(--text-xs);
     color: var(--text-3);
+}
+
+.suggestion-chevron {
+
+    grid-area: 1 / 3 / 3 / 4;
+    width: 13px;
+    height: 13px;
+    color: var(--text-4);
+}
+
+.suggestion-card:last-child {
+
+    border-bottom: 0;
+}
+
+.suggestion-card:active {
+
+    transform: none;
+    background: var(--surface-2);
+}
+
+@media (hover: hover) {
+
+    .suggestion-card:hover {
+
+        background: var(--surface-hover);
+        border-color: var(--border);
+    }
 }
 
 .composer-shell {
