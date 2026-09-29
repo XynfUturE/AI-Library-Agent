@@ -12,7 +12,9 @@
 .catalog-page {
 
     width: 100%;
-    max-width: var(--page-max-width);
+    /* Wider than the dashboard page: the grid needs columns, and the
+       category names need room before they start truncating. */
+    max-width: 1400px;
     margin: 0 auto;
     padding: 28px 24px 48px;
     display: flex;
@@ -53,7 +55,7 @@
 
 .catalog-sidebar {
 
-    width: 240px;
+    width: 300px;
     flex-shrink: 0;
     position: sticky;
     top: 0;
@@ -421,7 +423,7 @@
     display: grid;
     grid-template-columns: repeat(
         auto-fill,
-        minmax(200px, 1fr)
+        minmax(220px, 1fr)
     );
     gap: 14px;
     padding: 16px;
@@ -462,7 +464,7 @@
 
 .book-cover {
 
-    height: 96px;
+    height: 128px;
     display: flex;
     align-items: flex-end;
     padding: 12px;

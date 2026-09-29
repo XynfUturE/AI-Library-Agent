@@ -922,15 +922,11 @@ select:focus {
     font-weight: 600;
 }
 
-/* A notification belongs top-right and stays small; a banner across
-   the middle of the window steals the whole page. */
+/* A notification belongs centred at the top of the window, where the
+   eye already is, and stays small. */
 .toast-container {
 
     top: 24px;
-    left: auto;
-    right: 24px;
-    transform: none;
-    align-items: flex-end;
 }
 
 .toast {

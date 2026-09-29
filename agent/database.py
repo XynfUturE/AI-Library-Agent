@@ -1069,6 +1069,241 @@ def seed_demo_books(cursor):
                 "durable, long-term understanding."
             ),
         },
+        # ----------------------------------------------------
+        # Second pass: fills out the leaf categories that only
+        # had a heading, so browsing a category is never empty.
+        # ----------------------------------------------------
+        {
+            "title": "Artificial Intelligence: A Modern Approach",
+            "author": "Stuart Russell & Peter Norvig",
+            "category": "Computers & IT / Artificial Intelligence",
+            "year": "2020",
+            "cover": "https://covers.openlibrary.org/b/id/13271556-L.jpg",
+            "description": (
+                "The standard text on intelligent agents, search, reasoning "
+                "and machine learning, written for a first course in AI."
+            ),
+        },
+        {
+            "title": "Eloquent JavaScript",
+            "author": "Marijn Haverbeke",
+            "category": "Computers & IT / Web & Mobile Development",
+            "year": "2018",
+            "cover": "https://covers.openlibrary.org/b/id/7082166-L.jpg",
+            "description": (
+                "A modern introduction to JavaScript, the browser and Node, "
+                "built around writing programs from the first page."
+            ),
+        },
+        {
+            "title": "The Web Application Hacker's Handbook",
+            "author": "Dafydd Stuttard & Marcus Pinto",
+            "category": "Computers & IT / Cybersecurity & Networking",
+            "year": "2011",
+            "cover": "https://covers.openlibrary.org/b/id/8733893-L.jpg",
+            "description": (
+                "How web applications are attacked and defended, with the "
+                "techniques and tooling used in real penetration tests."
+            ),
+        },
+        {
+            "title": "The C Programming Language",
+            "author": "Brian W. Kernighan & Dennis M. Ritchie",
+            "category": "Computers & IT / Programming Languages",
+            "year": "1978",
+            "cover": "https://covers.openlibrary.org/b/id/6684943-L.jpg",
+            "description": (
+                "The concise original reference for C, written by the "
+                "language's designer and its most influential teacher."
+            ),
+        },
+        {
+            "title": "Leaves of Grass",
+            "author": "Walt Whitman",
+            "category": "Literature & Fiction / Poetry & Drama",
+            "year": "1855",
+            "cover": "https://covers.openlibrary.org/b/id/9000447-L.jpg",
+            "description": (
+                "Whitman's lifelong book of poems, celebrating the body, the "
+                "nation and the ordinary person."
+            ),
+        },
+        {
+            "title": "Normal People",
+            "author": "Sally Rooney",
+            "category": "Literature & Fiction / Contemporary & Romance",
+            "year": "2018",
+            "cover": "https://covers.openlibrary.org/b/id/8794265-L.jpg",
+            "description": (
+                "Two people circle each other through school and university in "
+                "a close study of intimacy and class."
+            ),
+        },
+        {
+            "title": "Meditations",
+            "author": "Marcus Aurelius",
+            "category": "Humanities & Social Sciences / Philosophy & Ethics",
+            "year": "180",
+            "cover": "https://covers.openlibrary.org/b/id/211529-L.jpg",
+            "description": (
+                "A Roman emperor's private notes on self-discipline, duty and "
+                "the Stoic view of what is worth wanting."
+            ),
+        },
+        {
+            "title": "The Origins of Totalitarianism",
+            "author": "Hannah Arendt",
+            "category": "Humanities & Social Sciences / Politics & Society",
+            "year": "1951",
+            "cover": "https://covers.openlibrary.org/b/id/10793645-L.jpg",
+            "description": (
+                "Arendt's study of how antisemitism, imperialism and "
+                "propaganda made totalitarian rule possible."
+            ),
+        },
+        {
+            "title": "Guns, Germs, and Steel",
+            "author": "Jared Diamond",
+            "category": "Humanities & Social Sciences / Geography & Culture",
+            "year": "1997",
+            "cover": "https://covers.openlibrary.org/b/id/7884018-L.jpg",
+            "description": (
+                "An argument that geography and biology, not culture, "
+                "explain why societies developed at different rates."
+            ),
+        },
+        {
+            "title": "Principles of Economics",
+            "author": "N. Gregory Mankiw",
+            "category": "Economics & Business / Economics",
+            "year": "1997",
+            "cover": "https://covers.openlibrary.org/b/id/19884-L.jpg",
+            "description": (
+                "A teaching-first introduction to supply, demand, markets and "
+                "the way economists read the world."
+            ),
+        },
+        {
+            "title": "High Output Management",
+            "author": "Andrew S. Grove",
+            "category": "Economics & Business / Management & Leadership",
+            "year": "1983",
+            "cover": "https://covers.openlibrary.org/b/id/421244-L.jpg",
+            "description": (
+                "Intel's long-serving chief executive on running teams "
+                "through measurable output rather than activity."
+            ),
+        },
+        {
+            "title": "Influence: The Psychology of Persuasion",
+            "author": "Robert B. Cialdini",
+            "category": "Economics & Business / Marketing & Sales",
+            "year": "1984",
+            "cover": "https://covers.openlibrary.org/b/id/13231578-L.jpg",
+            "description": (
+                "The six principles salespeople and marketers lean on, and "
+                "why they work on almost everyone."
+            ),
+        },
+        {
+            "title": "Concrete Mathematics",
+            "author": "Ronald L. Graham, Donald E. Knuth & Oren Patashnik",
+            "category": "Natural Sciences / Mathematics",
+            "year": "1989",
+            "cover": "https://covers.openlibrary.org/b/id/135182-L.jpg",
+            "description": (
+                "The maths that computer science actually needs, taught "
+                "through sums, recurrences and generating functions."
+            ),
+        },
+        {
+            "title": "Silent Spring",
+            "author": "Rachel Carson",
+            "category": "Natural Sciences / Chemistry & Earth Science",
+            "year": "1962",
+            "cover": "https://covers.openlibrary.org/b/id/3825693-L.jpg",
+            "description": (
+                "The book that turned pesticide pollution into a public "
+                "question and helped start the environmental movement."
+            ),
+        },
+        {
+            "title": "Sustainable Energy - Without the Hot Air",
+            "author": "David J. C. MacKay",
+            "category": "Engineering & Technology / Energy & Environment",
+            "year": "2009",
+            "cover": "https://covers.openlibrary.org/b/id/7243923-L.jpg",
+            "description": (
+                "Energy numbers rather than slogans, worked through until the "
+                "options for a low-carbon country are legible."
+            ),
+        },
+        {
+            "title": "The Architecture of Happiness",
+            "author": "Alain de Botton",
+            "category": "Arts & Design / Architecture",
+            "year": "2006",
+            "cover": "https://covers.openlibrary.org/b/id/5314605-L.jpg",
+            "description": (
+                "Why buildings move us, and what the shape of a room says "
+                "about the life expected inside it."
+            ),
+        },
+        {
+            "title": "Understanding Comics",
+            "author": "Scott McCloud",
+            "category": "Arts & Design / Film, Music & Photography",
+            "year": "1993",
+            "cover": "https://covers.openlibrary.org/b/id/10679940-L.jpg",
+            "description": (
+                "A comic about comics that explains panels, time and the "
+                "grammar shared by images in sequence."
+            ),
+        },
+        {
+            "title": "The Body Keeps the Score",
+            "author": "Bessel van der Kolk",
+            "category": "Health & Wellbeing / Mental Health & Self-Care",
+            "year": "2014",
+            "cover": "https://covers.openlibrary.org/b/id/8315367-L.jpg",
+            "description": (
+                "How trauma is held in the body, and what treatment that "
+                "actually helps looks like."
+            ),
+        },
+        {
+            "title": "The Very Hungry Caterpillar",
+            "author": "Eric Carle",
+            "category": "Children & Young Adult / Picture Books & Early Readers",
+            "year": "1969",
+            "cover": "https://covers.openlibrary.org/b/id/7835968-L.jpg",
+            "description": (
+                "A caterpillar eats its way through the week and emerges as "
+                "something else, told in cut-paper colour."
+            ),
+        },
+        {
+            "title": "The Hate U Give",
+            "author": "Angie Thomas",
+            "category": "Children & Young Adult / Young Adult Fiction",
+            "year": "2017",
+            "cover": "https://covers.openlibrary.org/b/id/11521588-L.jpg",
+            "description": (
+                "A teenager finds her voice after witnessing a police "
+                "shooting, caught between two worlds."
+            ),
+        },
+        {
+            "title": "Fluent Forever",
+            "author": "Gabriel Wyner",
+            "category": "Education & Reference / Study Skills & Language Learning",
+            "year": "2014",
+            "cover": "https://covers.openlibrary.org/b/id/9413708-L.jpg",
+            "description": (
+                "A memory-and-pronunciation method for learning a language "
+                "without moving abroad."
+            ),
+        },
     ]
 
     for book in demo_books:
