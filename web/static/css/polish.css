@@ -36,9 +36,12 @@ body {
 
 .app-shell {
 
+    /* Fixed, not in flow: a 12px margin on an in-flow 100dvh box pushed
+       the document past the viewport and grew a page scrollbar. */
+    position: fixed;
+    inset: 12px;
+    height: auto;
     background: var(--bg);
-    height: calc(100dvh - 24px);
-    margin: 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
@@ -89,8 +92,8 @@ body {
 
     .app-shell {
 
-        height: 100dvh;
-        margin: 0;
+        inset: 0;
+        height: auto;
         border: 0;
         border-radius: 0;
         box-shadow: none;
@@ -923,9 +926,9 @@ select:focus {
    the middle of the window steals the whole page. */
 .toast-container {
 
-    top: 10px;
+    top: 24px;
     left: auto;
-    right: 10px;
+    right: 24px;
     transform: none;
     align-items: flex-end;
 }
