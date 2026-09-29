@@ -27,10 +27,10 @@ body {
 
     min-height: 100%;
     font-family: var(--font-sans);
-    /* 17px body with open leading. Tracking is size-specific: body
-       copy sits near zero, display sizes tighten (see polish.css). */
-    font-size: 17px;
-    line-height: 1.4706;
+    /* The macOS interface size: 13px. Tracking stays near zero here
+       and tightens only as type grows (see polish.css). */
+    font-size: 13px;
+    line-height: 1.3846;
     letter-spacing: var(--track-body);
     font-optical-sizing: auto;
     color: var(--text-1);

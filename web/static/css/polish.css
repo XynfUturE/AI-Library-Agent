@@ -1,33 +1,151 @@
 /* ============================================================
    POLISH LAYER — loaded last, on purpose.
 
-   Values (palette, type stack, radii, no shadows, springs) live in
-   tokens.css. This file is the layer that applies the design
-   principles from the apple-design skill, which is itself a
-   translation of three WWDC talks:
+   Values live in tokens.css. This file spends them on the macOS
+   *system* interface:
 
-     - Designing Fluid Interfaces  -> respond on pointer-down, springs
-       instead of fixed durations, materials where layers overlap
-     - The Details of UI Typography -> tracking is size-specific,
-       leading tracks size inversely, respect the text-size setting
-     - Principles of Great Design   -> restraint, hierarchy from
-       weight/size/grayscale, nothing decorative
+     - chrome is a material (tinted sidebar, lighter toolbar) with a
+       blue selection, the way a Mac app is built
+     - content sits in inset groups separated by hairlines instead of
+       a wall of bordered cards
+     - controls are 28px, 6px radius, 13px text
+     - numbers are tabular, tracking is size-specific
+     - response happens on pointer-down; floating surfaces arrive on
+       the spring from the apple-design skill
 
-   Rules that are a value of no single component end up here, so the
-   whole pass stays one file to revert.
+   The whole pass is this one file plus the tokens it reads.
    ============================================================ */
 
 /* ------------------------------------------------------------
-   1. TYPE — tracking per size, leading per size, tabular figures
+   1. WINDOW CHROME — sidebar and toolbar as materials
+   ------------------------------------------------------------ */
+
+.app-shell {
+
+    background: var(--bg);
+}
+
+.sidebar {
+
+    background: var(--material-sidebar);
+    -webkit-backdrop-filter: saturate(180%) blur(60px);
+    backdrop-filter: saturate(180%) blur(60px);
+    border-right: 1px solid var(--border);
+}
+
+.app-topbar {
+
+    background: var(--material-toolbar);
+    -webkit-backdrop-filter: saturate(180%) blur(30px);
+    backdrop-filter: saturate(180%) blur(30px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 14px;
+}
+
+.topbar-title {
+
+    font-size: var(--text-base);
+    font-weight: 600;
+}
+
+.sidebar-title {
+
+    font-size: var(--text-base);
+    font-weight: 600;
+}
+
+.sidebar-header {
+
+    height: var(--topbar-height);
+    padding-inline: 12px;
+}
+
+/* ------------------------------------------------------------
+   2. SIDEBAR — 28px rows, blue selection
+   ------------------------------------------------------------ */
+
+.sidebar-nav,
+.sidebar-shortcuts {
+
+    padding-inline: 8px;
+}
+
+.sidebar-nav .nav-item,
+.sidebar-nav .shortcut-item {
+
+    height: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+    gap: 8px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-base);
+    font-weight: 400;
+    color: var(--text-1);
+}
+
+.sidebar-nav .nav-item .icon,
+.sidebar-nav .shortcut-item .icon {
+
+    width: 15px;
+    height: 15px;
+    color: var(--text-2);
+}
+
+.sidebar-nav .nav-item.active {
+
+    background: var(--selection);
+    color: var(--selection-contrast);
+}
+
+.sidebar-nav .nav-item.active .icon,
+.sidebar-nav .nav-item.active .nav-label {
+
+    color: var(--selection-contrast);
+}
+
+.sidebar-section {
+
+    padding: 14px 12px 4px;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: var(--track-micro);
+    color: var(--text-3);
+}
+
+[data-theme="dark"] .sidebar-nav .nav-item.active {
+
+    background: var(--selection);
+}
+
+.user-chip {
+
+    border-radius: var(--radius-sm);
+}
+
+.user-chip-name {
+
+    font-size: var(--text-base);
+}
+
+.user-chip-role {
+
+    font-size: var(--text-xs);
+}
+
+.sidebar-footer {
+
+    border-top: 1px solid var(--border);
+}
+
+/* ------------------------------------------------------------
+   3. TYPE — interface sizes, tracking per size
    ------------------------------------------------------------ */
 
 .page-header h1,
-.page-title,
-.chat-welcome h1,
-.chat-welcome h2 {
+.page-title {
 
-    font-size: 2.5rem;
-    line-height: 1.1;
+    font-size: var(--text-2xl);
+    line-height: 1.2;
     font-weight: 600;
     letter-spacing: var(--track-display);
 }
@@ -35,8 +153,7 @@
 .page-sub,
 .chat-welcome p {
 
-    font-size: 1.1875rem;
-    line-height: 1.4211;
+    font-size: var(--text-sm);
     letter-spacing: 0;
     color: var(--text-3);
 }
@@ -45,39 +162,41 @@
 .card-head h2,
 .card-head h3 {
 
-    font-size: 1.3125rem;
+    font-size: var(--text-lg);
     font-weight: 600;
-    letter-spacing: -0.012em;
+    letter-spacing: var(--track-display);
 }
 
-.topbar-title,
-.sidebar-title {
+.chat-welcome h1,
+.chat-welcome h2 {
 
-    font-size: 1.0625rem;
+    font-size: var(--text-2xl);
+    line-height: 1.2;
     font-weight: 600;
-    letter-spacing: var(--track-body);
+    letter-spacing: var(--track-display);
 }
 
-/* Small text gets slightly positive tracking: tight tracking breaks
-   legibility as type shrinks, the mirror of display sizes. */
-.sidebar-section,
 .history-table th,
+.sidebar-section,
 .badge,
+.stat-label,
 .composer-hint,
-.catalog-results-count {
+.catalog-results-count,
+.book-category {
 
     letter-spacing: var(--track-micro);
 }
 
-.sidebar-section {
+.stat-label,
+.history-table th,
+.book-category {
 
-    font-size: 0.6875rem;
+    font-size: var(--text-xs);
     font-weight: 600;
-    color: var(--text-4);
+    color: var(--text-3);
 }
 
-/* Numbers line up in columns instead of dancing: aligned digits are
-   a craft detail that costs nothing. */
+/* Aligned digits: a craft detail that costs nothing. */
 .stat-value,
 .stat-card strong,
 .count-badge,
@@ -92,8 +211,7 @@ time {
 }
 
 /* ------------------------------------------------------------
-   2. RESPONSE — feedback lives on the press, and it is instant
-   (Fluid Interfaces: latency on the input path is a regression)
+   4. RESPONSE — press feedback on pointer-down, instantly
    ------------------------------------------------------------ */
 
 button,
@@ -103,7 +221,8 @@ button,
 .suggestion-card,
 .book-card,
 .button,
-.icon-button {
+.icon-button,
+.dialog-tab {
 
     transition: transform 100ms ease-out,
         background-color 150ms var(--ease),
@@ -118,128 +237,139 @@ button:active,
 .shortcut-item:active,
 .cat-select:active,
 .suggestion-card:active,
-.book-card:active {
+.book-card:active,
+.dialog-tab:active {
 
     transform: scale(0.97);
 }
 
-/* Hover is a hint, not feedback: pointer devices only, one pixel of
-   lift, no colour carnival. */
 @media (hover: hover) {
 
-    .button:hover,
-    .primary-button:hover,
-    .secondary-button:hover,
-    .icon-button:hover {
+    .sidebar-nav .nav-item:hover,
+    .sidebar-nav .shortcut-item:hover {
 
-        background-color: var(--surface-2);
+        background: var(--surface-hover);
     }
 
-    .button-primary:hover,
-    .primary-button:hover {
+    .sidebar-nav .nav-item.active:hover {
 
-        background-color: var(--primary-strong);
+        background: var(--selection);
     }
 
     .suggestion-card:hover,
     .book-card:hover {
 
-        transform: translateY(-1px);
-        border-color: var(--text-4);
-    }
-
-    .nav-item:hover,
-    .shortcut-item:hover {
-
-        background-color: var(--surface-2);
-        color: var(--text-1);
+        background: var(--surface-hover);
+        border-color: var(--border-strong);
     }
 
     .history-table tbody tr:hover,
     .loan-row:hover,
     .fine-row:hover {
 
-        background-color: var(--surface-2);
+        background: var(--surface-hover);
+    }
+
+    .cat-select:hover {
+
+        background: var(--surface-hover);
     }
 }
 
 /* ------------------------------------------------------------
-   3. HIERARCHY FROM STRUCTURE, NOT DECORATION
+   5. CONTROLS — 28px, 6px radius, 13px
    ------------------------------------------------------------ */
 
-/* The sidebar is a structural region: heavier by tint, flat, no
-   glass, because it never overlaps content. */
-.sidebar {
+.button,
+.primary-button,
+.secondary-button,
+.button-ghost {
+
+    height: 28px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-base);
+    font-weight: 500;
+    letter-spacing: 0;
+    box-shadow: none;
+}
+
+.button-primary,
+.primary-button {
+
+    background: var(--primary);
+    border: 1px solid transparent;
+    color: var(--on-primary);
+}
+
+.button-secondary,
+.secondary-button,
+.button-ghost {
+
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    color: var(--text-1);
+    box-shadow: var(--shadow-sm);
+}
+
+.button-small {
+
+    height: 24px;
+    padding: 0 10px;
+    font-size: var(--text-sm);
+}
+
+.icon-button {
+
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+}
+
+.icon-button.active {
 
     background: var(--surface-2);
-    border-right: 1px solid var(--border);
-}
-
-[data-theme="dark"] .sidebar {
-
-    background: #0a0a0b;
-}
-
-/* The topbar does not float over content either, so it stays flat:
-   95% white and one hairline. Glass is reserved for real overlap. */
-.app-topbar {
-
-    background: rgba(255, 255, 255, 0.95);
-    border-bottom: 1px solid var(--border);
-}
-
-[data-theme="dark"] .app-topbar {
-
-    background: rgba(0, 0, 0, 0.95);
-}
-
-.sidebar-nav .nav-item.active {
-
-    background: transparent;
     color: var(--text-1);
 }
 
-.sidebar-nav .nav-item.active .nav-label {
+.input,
+textarea.input,
+select.catalog-availability,
+.dialog select {
 
-    font-weight: 600;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    font-size: var(--text-base);
 }
 
-.sidebar-nav .nav-item,
-.sidebar-nav .shortcut-item {
+textarea.input {
 
-    border-radius: var(--radius-xs);
-    color: var(--text-3);
-    font-size: 0.875rem;
-}
-
-::selection {
-
-    background: rgba(0, 113, 227, 0.18);
-}
-
-/* ------------------------------------------------------------
-   4. FOCUS — an outline, like the platform
-   ------------------------------------------------------------ */
-
-:focus-visible {
-
-    outline: 2px solid #0071e3;
-    outline-offset: 1px;
+    height: auto;
+    padding: 6px 8px;
 }
 
 .input:focus,
 .field-shell:focus-within,
-.composer-shell:focus-within {
+.composer-shell:focus-within,
+select:focus {
 
-    border-color: #0071e3;
-    box-shadow: none;
-    outline: 2px solid #0071e3;
-    outline-offset: 1px;
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+    outline: none;
+}
+
+:focus-visible {
+
+    outline: none;
+    box-shadow: var(--ring);
 }
 
 /* ------------------------------------------------------------
-   5. CONTAINERS — hairlines, room to breathe, rem so a larger text
-   size scales the layout with it instead of breaking it
+   6. CONTENT GROUPS — inset lists, not a wall of cards
    ------------------------------------------------------------ */
 
 .card,
@@ -252,37 +382,52 @@ button:active,
 
     background: var(--surface);
     border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
     box-shadow: none;
 }
 
 .card {
 
-    padding: 2rem;
+    padding: 12px 16px;
 }
 
 .card-head {
 
-    padding-bottom: 1.125rem;
+    padding: 4px 0 8px;
     border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+}
+
+.count-badge {
+
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    font-size: var(--text-sm);
+    font-weight: 400;
 }
 
 .stat-grid,
 .suggestion-grid {
 
-    gap: 1.5rem;
+    gap: 12px;
 }
 
 .stat-card {
 
-    padding: 1.75rem 1.875rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
 }
 
-/* A plain glyph reads as an icon; a tinted tile reads as decoration. */
-.stat-card .stat-icon {
+.stat-icon {
 
+    width: 22px;
+    height: 22px;
     border-radius: 0;
     background: transparent;
-    color: #0066cc;
+    color: var(--text-3);
 }
 
 .stat-card.alerting .stat-icon {
@@ -297,77 +442,60 @@ button:active,
     color: var(--warning);
 }
 
+.stat-value,
+.stat-card strong {
+
+    font-size: var(--text-3xl);
+    font-weight: 600;
+    letter-spacing: var(--track-display);
+}
+
+.stat-label {
+
+    font-size: var(--text-xs);
+}
+
 .loan-row,
 .fine-row {
 
-    padding-block: 1.25rem;
+    padding-block: 9px;
     border-bottom: 1px solid var(--border);
+}
+
+.loan-row:last-child,
+.fine-row:last-child {
+
+    border-bottom: none;
+}
+
+.loan-title,
+.fine-title {
+
+    font-size: var(--text-base);
+    font-weight: 500;
+}
+
+.loan-meta,
+.fine-meta {
+
+    font-size: var(--text-xs);
+    color: var(--text-3);
 }
 
 .history-table th {
 
-    font-size: 0.75rem;
+    padding: 6px 8px;
+    font-size: var(--text-xs);
     font-weight: 600;
-    color: var(--text-4);
+    color: var(--text-3);
     border-bottom: 1px solid var(--border);
 }
 
 .history-table td {
 
-    padding-block: 1rem;
+    padding: 7px 8px;
+    font-size: var(--text-base);
     border-bottom: 1px solid var(--border);
-}
-
-.button,
-.primary-button,
-.secondary-button {
-
-    border-radius: 980px;
-    font-size: 1.0625rem;
-    font-weight: 400;
-    box-shadow: none;
-}
-
-.button-primary,
-.primary-button {
-
-    background: #0071e3;
-    border-color: #0071e3;
-    color: #ffffff;
-}
-
-.button-secondary,
-.secondary-button {
-
-    background: #f5f5f7;
-    border: 1px solid #d2d2d7;
-    color: var(--text-1);
-}
-
-[data-theme="dark"] .button-secondary,
-[data-theme="dark"] .secondary-button {
-
-    background: #1d1d1f;
-    border-color: #444444;
-}
-
-.button-small {
-
-    font-size: 0.875rem;
-    padding-inline: 1.125rem;
-}
-
-.icon-button,
-.button-ghost {
-
-    border-radius: var(--radius-xs);
-    color: #0066cc;
-}
-
-.icon-button.active {
-
-    background: var(--surface-2);
-    color: var(--text-1);
 }
 
 .badge,
@@ -376,165 +504,126 @@ button:active,
 .badge-warning,
 .badge-danger {
 
-    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: var(--radius-xs);
     border: 1px solid var(--border);
-    color: var(--text-3);
-    font-size: 0.75rem;
-    font-weight: 400;
-    border-radius: 6px;
-    padding: 3px 9px;
-}
-
-.count-badge {
-
-    background: transparent;
-    border: none;
-    color: var(--text-3);
-    font-weight: 400;
-}
-
-/* ------------------------------------------------------------
-   6. MATERIALS — glass only where layers actually overlap
-   ------------------------------------------------------------ */
-
-/* Dialogs and toasts float above the page, so they get the material:
-   translucent, blurred, with the deeper shadow a larger surface
-   earns. Everything on the page layer stays flat. */
-.dialog,
-.toast {
-
-    background: rgba(255, 255, 255, 0.78);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
-        0 18px 48px rgba(0, 0, 0, 0.16);
-}
-
-[data-theme="dark"] .dialog,
-[data-theme="dark"] .toast {
-
-    background: rgba(28, 28, 30, 0.78);
-    border-color: rgba(255, 255, 255, 0.12);
-}
-
-/* Dim to focus (Fluid Interfaces / materials): the page steps back,
-   the task stays. */
-.dialog-overlay {
-
-    background: rgba(0, 0, 0, 0.28);
-}
-
-[data-theme="dark"] .dialog-overlay {
-
-    background: rgba(0, 0, 0, 0.55);
-}
-
-/* Text over a blur needs weight and contrast, not flat grey. */
-.toast,
-.dialog {
-
-    color: var(--text-1);
+    background: var(--surface-2);
+    font-size: var(--text-xs);
     font-weight: 500;
 }
 
-/* Fields sit on a solid layer: stacking a light input on a light
-   translucent panel is where legibility collapses. */
-.dialog .input,
-.dialog textarea,
-.dialog select,
-.dialog .field-shell {
+.badge-success {
 
-    background: var(--surface);
+    color: var(--success);
+    border-color: var(--success-border);
+    background: var(--success-soft);
 }
 
-[data-theme="dark"] .dialog .input,
-[data-theme="dark"] .dialog textarea,
-[data-theme="dark"] .dialog select,
-[data-theme="dark"] .dialog .field-shell {
+.badge-warning {
 
-    background: #1d1d1f;
+    color: var(--warning);
+    border-color: var(--warning-border);
+    background: var(--warning-soft);
+}
+
+.badge-danger {
+
+    color: var(--danger);
+    border-color: var(--danger-border);
+    background: var(--danger-soft);
 }
 
 /* ------------------------------------------------------------
-   7. CHAT + CATALOG detail
+   7. CHAT
    ------------------------------------------------------------ */
 
 .welcome-icon {
 
-    border-radius: 12px;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-lg);
     box-shadow: none;
 }
 
 .suggestion-card {
 
-    padding: 1.5rem;
+    padding: 12px 14px;
+    text-align: left;
 }
 
 .suggestion-icon {
 
     background: transparent;
-    color: #0066cc;
+    color: var(--primary);
 }
 
 .suggestion-title {
 
-    font-size: 1.0625rem;
+    font-size: var(--text-base);
     font-weight: 600;
 }
 
-.suggestion-sub,
-.composer-hint {
+.suggestion-sub {
 
+    font-size: var(--text-xs);
     color: var(--text-3);
 }
 
 .composer-shell {
 
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
 }
 
-.book-cover,
-.book-thumb {
+.composer-hint {
 
-    box-shadow: none;
-    border-bottom: 1px solid var(--border);
+    font-size: var(--text-xs);
 }
 
-.book-title {
+.message .bubble,
+.message-bubble {
 
-    font-size: 1.0625rem;
-    font-weight: 600;
+    border-radius: var(--radius-lg);
+    font-size: var(--text-base);
 }
 
-.book-author,
-.book-category {
+/* ------------------------------------------------------------
+   8. CATALOG
+   ------------------------------------------------------------ */
 
-    color: var(--text-3);
+.catalog-search-shell {
+
+    height: 28px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
 }
 
-.catalog-search-shell,
-select.catalog-availability {
+.catalog-sidebar {
 
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    height: 2.75rem;
+    padding: 8px;
 }
 
 .catalog-sidebar .cat-select {
 
-    border-radius: var(--radius-xs);
-    color: var(--text-3);
-    font-size: 0.875rem;
+    height: 26px;
+    padding: 0 6px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-base);
+    color: var(--text-1);
 }
 
 .catalog-sidebar .cat-select.active {
 
-    background: transparent;
-    color: var(--text-1);
-    font-weight: 600;
+    background: var(--selection);
+    color: var(--selection-contrast);
+}
+
+.catalog-sidebar .cat-select.active .icon,
+.catalog-sidebar .cat-select.active .cat-name {
+
+    color: var(--selection-contrast);
 }
 
 .catalog-sidebar .cat-count,
@@ -543,11 +632,124 @@ select.catalog-availability {
     background: transparent;
     border-color: transparent;
     color: var(--text-3);
+    font-size: var(--text-xs);
     font-weight: 400;
 }
 
+.catalog-sidebar .cat-select.active .cat-count {
+
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.book-card {
+
+    overflow: hidden;
+}
+
+.book-cover,
+.book-thumb {
+
+    border-bottom: 1px solid var(--border);
+    box-shadow: none;
+}
+
+.book-title {
+
+    font-size: var(--text-base);
+    font-weight: 600;
+}
+
+.book-author {
+
+    font-size: var(--text-xs);
+    color: var(--text-2);
+}
+
+.book-category {
+
+    font-size: var(--text-xs);
+}
+
 /* ------------------------------------------------------------
-   8. AUTH — black hero, quiet form
+   9. MATERIALS — floating layers only
+   ------------------------------------------------------------ */
+
+.dialog,
+.toast {
+
+    background: rgba(255, 255, 255, 0.78);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    font-size: var(--text-base);
+}
+
+[data-theme="dark"] .dialog,
+[data-theme="dark"] .toast {
+
+    background: rgba(42, 42, 44, 0.8);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+.dialog-overlay {
+
+    background: rgba(0, 0, 0, 0.24);
+}
+
+[data-theme="dark"] .dialog-overlay {
+
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* Fields sit on a solid layer under the material: light on light is
+   where legibility collapses. */
+.dialog .input,
+.dialog textarea,
+.dialog select,
+.dialog .field-shell {
+
+    background: var(--surface);
+}
+
+.dialog-tabs {
+
+    border-bottom: 1px solid var(--border);
+}
+
+.dialog-tab {
+
+    font-size: var(--text-base);
+}
+
+.dialog-head h2 {
+
+    font-size: var(--text-lg);
+    font-weight: 600;
+}
+
+/* A notification belongs top-right and stays small; a banner across
+   the middle of the window steals the whole page. */
+.toast-container {
+
+    top: 10px;
+    left: auto;
+    right: 10px;
+    transform: none;
+    align-items: flex-end;
+}
+
+.toast {
+
+    padding: 7px 12px;
+    gap: 6px;
+    font-size: var(--text-base);
+    font-weight: 500;
+}
+
+/* ------------------------------------------------------------
+   10. AUTH
    ------------------------------------------------------------ */
 
 .brand-panel-decoration {
@@ -555,37 +757,47 @@ select.catalog-availability {
     display: none;
 }
 
+.brand-panel {
+
+    color: #f5f5f7;
+}
+
 .auth-eyebrow {
 
-    color: #86868b;
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 600;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track-micro);
+    color: #86868b;
 }
 
 .brand-panel h1,
 .brand-panel-title {
 
-    font-size: 3rem;
-    line-height: 1.0834;
+    font-size: 2rem;
+    line-height: 1.125;
     font-weight: 600;
-    letter-spacing: -0.003em;
+    letter-spacing: var(--track-display);
 }
 
 .brand-panel p {
 
-    color: #86868b;
-    font-size: 1.0625rem;
+    font-size: var(--text-base);
+    color: #a1a1a6;
 }
 
 .feature-item {
 
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
     color: #d2d2d7;
 }
 
+.auth-card {
+
+    padding: 24px;
+}
+
 /* ------------------------------------------------------------
-   9. MOTION — springs for what appears, plain fades for the rest
+   11. MOTION — springs for what appears, fades for the rest
    ------------------------------------------------------------ */
 
 @keyframes rise-in {
@@ -596,8 +808,6 @@ select.catalog-availability {
     }
 }
 
-/* Page content cross-fades: a slide would invent a direction the
-   layout does not have (spatial consistency). */
 .card,
 .stat-card,
 .suggestion-card,
@@ -608,9 +818,6 @@ select.catalog-availability {
     animation: rise-in var(--speed) var(--ease) both;
 }
 
-/* Floating surfaces materialise: blur and scale arrive together, so
-   the panel reads as a material rather than a fading rectangle, and
-   it enters on the spring instead of a fixed ease. */
 @keyframes materialize {
 
     from {
@@ -633,7 +840,7 @@ select.catalog-availability {
     .toast {
 
         animation: materialize 400ms var(--spring-soft) both;
-        transform-origin: bottom center;
+        transform-origin: top right;
     }
 }
 
@@ -647,15 +854,8 @@ select.catalog-availability {
     }
 }
 
-.dialog,
-.toast {
-
-    transition: opacity 250ms var(--ease),
-        transform 400ms var(--spring-soft);
-}
-
 /* ------------------------------------------------------------
-   10. ACCESSIBILITY — three independent signals, gentler not none
+   12. ACCESSIBILITY — gentler, not absent
    ------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
@@ -699,21 +899,24 @@ select.catalog-availability {
     }
 }
 
-/* Reduced transparency: make the materials solid rather than blurry. */
 @media (prefers-reduced-transparency: reduce) {
 
+    .sidebar,
+    .app-topbar,
     .dialog,
-    .toast,
-    .app-topbar {
+    .toast {
 
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
         background: var(--surface);
-        border: 1px solid var(--border);
+    }
+
+    .sidebar {
+
+        background: var(--surface-2);
     }
 }
 
-/* More contrast: near-solid surfaces with a defined border. */
 @media (prefers-contrast: more) {
 
     .card,
@@ -723,17 +926,20 @@ select.catalog-availability {
     .catalog-sidebar,
     .category-nav,
     .dialog,
-    .toast {
+    .toast,
+    .input {
 
         border-color: var(--text-1);
     }
 
+    .stat-label,
     .book-author,
     .book-category,
     .page-sub,
     .suggestion-sub,
-    .composer-hint {
+    .composer-hint,
+    .loan-meta {
 
-        color: var(--text-2);
+        color: var(--text-1);
     }
 }
